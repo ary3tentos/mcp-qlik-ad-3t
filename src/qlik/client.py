@@ -1,17 +1,15 @@
 import httpx
 import os
 from typing import Optional, Dict, Any, List
-from src.qlik.auth import QlikAuth
 
 class QlikRestClient:
-    def __init__(self, qlik_auth: QlikAuth):
-        self.qlik_auth = qlik_auth
+    def __init__(self):
         self.tenant_url = os.getenv("QLIK_CLOUD_TENANT_URL", "").rstrip("/")
     
-    async def get_apps(self, user_id: str, limit: Optional[int] = None, cursor: Optional[str] = None, name: Optional[str] = None) -> Dict[str, Any]:
-        access_token = await self.qlik_auth.get_access_token(user_id)
-        if not access_token:
-            raise Exception("No valid access token available. User needs to connect Qlik account.")
+    async def get_apps(self, api_key: str, limit: Optional[int] = None, cursor: Optional[str] = None, name: Optional[str] = None) -> Dict[str, Any]:
+        """List Qlik Cloud apps using API key"""
+        if not api_key:
+            raise Exception("Qlik Cloud API key is required")
         
         url = f"{self.tenant_url}/api/v1/items"
         params = {"resourceType": "app"}
@@ -29,7 +27,7 @@ class QlikRestClient:
                     url,
                     params=params,
                     headers={
-                        "Authorization": f"Bearer {access_token}",
+                        "Authorization": f"Bearer {api_key}",
                         "Content-Type": "application/json"
                     },
                     timeout=30.0
@@ -38,7 +36,7 @@ class QlikRestClient:
                 return response.json()
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 401:
-                raise Exception("Invalid or expired Qlik token. Please reconnect your Qlik account.")
+                raise Exception("Invalid or expired Qlik API key. Please check QLIK_CLOUD_API_KEY configuration.")
             raise Exception(f"Qlik API error: {e.response.status_code} - {e.response.text}")
         except Exception as e:
             raise Exception(f"Error calling Qlik API: {str(e)}")

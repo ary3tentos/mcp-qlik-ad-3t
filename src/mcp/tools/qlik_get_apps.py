@@ -1,17 +1,15 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from src.mcp.tools.base_tool import BaseTool
-from src.qlik.auth import QlikAuth
 from src.qlik.client import QlikRestClient
 
 class QlikGetAppsTool(BaseTool):
-    def __init__(self, qlik_auth: QlikAuth):
-        self.qlik_auth = qlik_auth
-        self.client = QlikRestClient(qlik_auth)
+    def __init__(self):
+        self.client = QlikRestClient()
     
     def get_schema(self) -> Dict[str, Any]:
         return {
             "name": "qlik_get_apps",
-            "description": "List available Qlik Cloud apps for the authenticated user",
+            "description": "List available Qlik Cloud apps (read-only)",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -33,12 +31,12 @@ class QlikGetAppsTool(BaseTool):
             }
         }
     
-    async def execute(self, user_id: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, arguments: Dict[str, Any], api_key: str) -> Dict[str, Any]:
         limit = arguments.get("limit")
         cursor = arguments.get("cursor")
         name = arguments.get("name")
         
-        result = await self.client.get_apps(user_id, limit=limit, cursor=cursor, name=name)
+        result = await self.client.get_apps(api_key, limit=limit, cursor=cursor, name=name)
         
         return {
             "apps": result.get("data", []),

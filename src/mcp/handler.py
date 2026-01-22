@@ -1,6 +1,6 @@
 import json
+import os
 from typing import Dict, Any, Optional
-from src.auth.jwt_validator import JWTValidator
 from src.qlik.auth import QlikAuth
 from src.mcp.tools import (
     QlikGetAppsTool,
@@ -10,17 +10,16 @@ from src.mcp.tools import (
 )
 
 class MCPHandler:
-    def __init__(self, token_store):
-        self.jwt_validator = JWTValidator()
-        self.qlik_auth = QlikAuth(token_store)
+    def __init__(self):
+        self.qlik_auth = QlikAuth()
         self.tools = {
-            "qlik_get_apps": QlikGetAppsTool(self.qlik_auth),
-            "qlik_get_app_sheets": QlikGetAppSheetsTool(self.qlik_auth),
-            "qlik_get_sheet_charts": QlikGetSheetChartsTool(self.qlik_auth),
-            "qlik_get_chart_data": QlikGetChartDataTool(self.qlik_auth)
+            "qlik_get_apps": QlikGetAppsTool(),
+            "qlik_get_app_sheets": QlikGetAppSheetsTool(),
+            "qlik_get_sheet_charts": QlikGetSheetChartsTool(),
+            "qlik_get_chart_data": QlikGetChartDataTool()
         }
     
-    async def handle_request(self, body: Dict[str, Any], token: str) -> Dict[str, Any]:
+    async def handle_request(self, body: Dict[str, Any], api_key: Optional[str] = None) -> Dict[str, Any]:
         import logging
         logger = logging.getLogger(__name__)
         
@@ -28,33 +27,8 @@ class MCPHandler:
         method = body.get("method")
         params = body.get("params", {})
         
-        logger.debug(f"Validating JWT token (length: {len(token)})")
-        decoded_token = await self.jwt_validator.validate_token(token)
-        if not decoded_token:
-            logger.warning("JWT token validation failed")
-            return {
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "error": {
-                    "code": -32000,
-                    "message": "Invalid or expired authentication token"
-                }
-            }
-        
-        logger.debug("JWT token validated successfully")
-        user_id = self.jwt_validator.extract_user_id(decoded_token)
-        if not user_id:
-            logger.warning("Could not extract user_id from token")
-            return {
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "error": {
-                    "code": -32000,
-                    "message": "Could not extract user ID from token"
-                }
-            }
-        
-        logger.debug(f"User ID extracted: {user_id}")
+        # Usar API key do parâmetro ou do ambiente
+        qlik_api_key = api_key or self.qlik_auth.get_api_key()
         
         if method == "initialize":
             return {
@@ -67,7 +41,8 @@ class MCPHandler:
                     },
                     "serverInfo": {
                         "name": "qlik-cloud-mcp-server",
-                        "version": "1.0.0"
+                        "version": "2.0.0",
+                        "description": "Qlik Cloud MCP Server - Read-only queries using API key"
                     }
                 }
             }
@@ -99,9 +74,20 @@ class MCPHandler:
                     }
                 }
             
+            # Verificar se API key está disponível
+            if tool_name.startswith("qlik_") and not qlik_api_key:
+                return {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {
+                        "code": -32000,
+                        "message": "Missing Qlik Cloud API key. Please configure QLIK_CLOUD_API_KEY."
+                    }
+                }
+            
             try:
                 tool_instance = self.tools[tool_name]
-                result = await tool_instance.execute(user_id, arguments)
+                result = await tool_instance.execute(arguments, qlik_api_key)
                 
                 return {
                     "jsonrpc": "2.0",
@@ -116,6 +102,7 @@ class MCPHandler:
                     }
                 }
             except Exception as e:
+                logger.error(f"Error executing tool {tool_name}: {str(e)}")
                 return {
                     "jsonrpc": "2.0",
                     "id": request_id,

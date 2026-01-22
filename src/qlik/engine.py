@@ -3,32 +3,30 @@ import json
 import websockets
 import os
 from typing import Optional, Dict, Any, List
-from src.qlik.auth import QlikAuth
 
 class QlikEngineClient:
-    def __init__(self, qlik_auth: QlikAuth):
-        self.qlik_auth = qlik_auth
+    def __init__(self):
         self.tenant_url = os.getenv("QLIK_CLOUD_TENANT_URL", "").rstrip("/")
         self.ws_url = self.tenant_url.replace("https://", "wss://").replace("http://", "ws://")
         self.connections: Dict[str, websockets.WebSocketClientProtocol] = {}
     
-    def _get_ws_url(self, app_id: str, user_id: str) -> str:
+    def _get_ws_url(self, app_id: str) -> str:
         return f"{self.ws_url}/app/{app_id}"
     
-    async def _get_connection(self, app_id: str, user_id: str) -> websockets.WebSocketClientProtocol:
-        cache_key = f"{user_id}:{app_id}"
+    async def _get_connection(self, app_id: str, api_key: str) -> websockets.WebSocketClientProtocol:
+        """Get or create WebSocket connection to Qlik Engine API"""
+        cache_key = f"{app_id}"
         if cache_key in self.connections:
             ws = self.connections[cache_key]
             if not ws.closed:
                 return ws
         
-        access_token = await self.qlik_auth.get_access_token(user_id)
-        if not access_token:
-            raise Exception("No valid access token available. User needs to connect Qlik account.")
+        if not api_key:
+            raise Exception("Qlik Cloud API key is required")
         
-        ws_url = self._get_ws_url(app_id, user_id)
+        ws_url = self._get_ws_url(app_id)
         headers = {
-            "Authorization": f"Bearer {access_token}"
+            "Authorization": f"Bearer {api_key}"
         }
         
         ws = await websockets.connect(ws_url, extra_headers=headers)
@@ -50,16 +48,16 @@ class QlikEngineClient:
         response = await ws.recv()
         return json.loads(response)
     
-    async def open_doc(self, app_id: str, user_id: str) -> Dict[str, Any]:
-        ws = await self._get_connection(app_id, user_id)
+    async def open_doc(self, app_id: str, api_key: str) -> Dict[str, Any]:
+        ws = await self._get_connection(app_id, api_key)
         result = await self._send_qix_request(ws, "OpenDoc", [app_id], handle=1)
         if "error" in result:
             raise Exception(f"QIX error: {result['error']}")
         return result.get("result", {})
     
-    async def get_sheets(self, app_id: str, user_id: str) -> List[Dict[str, Any]]:
-        ws = await self._get_connection(app_id, user_id)
-        await self.open_doc(app_id, user_id)
+    async def get_sheets(self, app_id: str, api_key: str) -> List[Dict[str, Any]]:
+        ws = await self._get_connection(app_id, api_key)
+        await self.open_doc(app_id, api_key)
         
         result = await self._send_qix_request(ws, "GetSheets", [], handle=2)
         if "error" in result:
@@ -67,9 +65,9 @@ class QlikEngineClient:
         
         return result.get("result", {}).get("qItems", [])
     
-    async def get_sheet_objects(self, app_id: str, sheet_id: str, user_id: str) -> List[Dict[str, Any]]:
-        ws = await self._get_connection(app_id, user_id)
-        await self.open_doc(app_id, user_id)
+    async def get_sheet_objects(self, app_id: str, sheet_id: str, api_key: str) -> List[Dict[str, Any]]:
+        ws = await self._get_connection(app_id, api_key)
+        await self.open_doc(app_id, api_key)
         
         result = await self._send_qix_request(ws, "GetSheetObjects", [sheet_id], handle=3)
         if "error" in result:
@@ -77,9 +75,9 @@ class QlikEngineClient:
         
         return result.get("result", {}).get("qItems", [])
     
-    async def get_object(self, app_id: str, object_id: str, user_id: str) -> Dict[str, Any]:
-        ws = await self._get_connection(app_id, user_id)
-        await self.open_doc(app_id, user_id)
+    async def get_object(self, app_id: str, object_id: str, api_key: str) -> Dict[str, Any]:
+        ws = await self._get_connection(app_id, api_key)
+        await self.open_doc(app_id, api_key)
         
         result = await self._send_qix_request(ws, "GetObject", [object_id], handle=4)
         if "error" in result:
@@ -87,13 +85,13 @@ class QlikEngineClient:
         
         return result.get("result", {})
     
-    async def get_hypercube_data(self, app_id: str, object_id: str, user_id: str, 
+    async def get_hypercube_data(self, app_id: str, object_id: str, api_key: str, 
                                   page_size: int = 100, max_rows: Optional[int] = None,
                                   include_meta: bool = False) -> Dict[str, Any]:
-        ws = await self._get_connection(app_id, user_id)
-        await self.open_doc(app_id, user_id)
+        ws = await self._get_connection(app_id, api_key)
+        await self.open_doc(app_id, api_key)
         
-        obj_result = await self.get_object(app_id, object_id, user_id)
+        obj_result = await self.get_object(app_id, object_id, api_key)
         layout = obj_result.get("layout", {})
         hypercube = layout.get("qHyperCube", {})
         
@@ -146,8 +144,8 @@ class QlikEngineClient:
         
         return response
     
-    async def close_connection(self, app_id: str, user_id: str):
-        cache_key = f"{user_id}:{app_id}"
+    async def close_connection(self, app_id: str):
+        cache_key = f"{app_id}"
         if cache_key in self.connections:
             ws = self.connections[cache_key]
             if not ws.closed:

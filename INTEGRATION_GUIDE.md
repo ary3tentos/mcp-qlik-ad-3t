@@ -2,60 +2,66 @@
 
 ## Pré-requisitos
 
-1. MCP Server Qlik Cloud rodando (porta 8080 por padrão)
-2. Acesso ao repositório ai-pocs
-3. Variáveis de ambiente configuradas no ai-pocs
+1. MCP Server Qlik Cloud rodando (porta 8082 por padrão)
+2. API key do Qlik Cloud (usuário mestre)
+3. Acesso ao repositório ai-pocs
 
 ## Passos de Integração
 
 ### 1. Registrar MCP no Registry
 
-Editar `backend/services/mcp_registry.py` e adicionar:
+Editar `backend/mcp_config.json`:
 
-```python
+```json
 {
-    "id": "qlik-cloud",
-    "name": "Qlik Cloud",
-    "type": "http",
-    "config": {
-        "url": "http://localhost:8080/mcp",
-        "api_key": None  # Usa JWT do usuário
-    }
+  "id": "qlik-cloud",
+  "name": "Qlik Cloud",
+  "transport": "http",
+  "endpoint": "http://localhost:8082/mcp",
+  "apiKey": "<api_key_do_usuário_mestre>",
+  "description": "Qlik Cloud MCP Server - Read-only queries"
 }
 ```
 
-### 2. Modificar MCPClient para Enviar JWT
+**Importante:** A `apiKey` deve ser a API key do Qlik Cloud de um usuário mestre que tem acesso aos apps que você quer consultar.
 
-Em `backend/services/mcp_client.py`, modificar o método que faz requisições HTTP para o MCP server:
+### 2. Configurar MCP Client
 
-- Quando `api_key` é `None`, usar o JWT do usuário atual no header `Authorization: Bearer <jwt>`
-- Extrair JWT do contexto da requisição (depende de como FastAPI gerencia auth)
+O `MCPClient` já suporta API key. Quando `api_key` está configurado no `mcp_config.json`, ele será usado automaticamente.
 
-### 3. Implementar Endpoints OAuth Qlik
+**Não é necessário:**
+- OAuth flow
+- Armazenamento de tokens por usuário
+- Endpoints de connect/disconnect
 
-Criar `backend/api/auth/qlik.py` com:
+### 3. Variáveis de Ambiente no ai-pocs
 
-- `GET /api/auth/qlik/authorize`: Inicia OAuth flow (Authorization Code + PKCE)
-- `GET /api/auth/qlik/callback`: Recebe callback, troca code por tokens
-- `POST /api/auth/qlik/tokens`: Armazena tokens no MCP server
-- `GET /api/auth/qlik/status`: Verifica se usuário tem tokens configurados
+**Não é necessário** adicionar variáveis de ambiente específicas do Qlik no backend, pois a API key já está no `mcp_config.json`.
 
-### 4. Endpoints de Gerenciamento
-
-Criar ou modificar `backend/api/mcps/qlik.py`:
-
-- `POST /api/mcps/user/qlik-cloud/connect`: Inicia OAuth flow
-- `GET /api/mcps/user/qlik-cloud/status`: Status de conexão
-- `DELETE /api/mcps/user/qlik-cloud/disconnect`: Remove tokens
-
-## Variáveis de Ambiente no ai-pocs
-
-Adicionar ao `.env` do ai-pocs:
-
+**Opcional (se necessário):**
 ```env
-QLIK_MCP_SERVER_URL=http://localhost:8080
-QLIK_CLOUD_TENANT_URL=https://<tenant>.qlikcloud.com
-QLIK_CLOUD_REDIRECT_URI=https://<seu-backend>/api/auth/qlik/callback
+QLIK_MCP_SERVER_URL=http://localhost:8082
 ```
 
-**Nota:** Quando o Qlik Cloud está configurado com Azure AD como IdP, não é necessário `QLIK_CLOUD_CLIENT_ID` e `QLIK_CLOUD_CLIENT_SECRET`. O usuário autentica diretamente com Azure AD (mesmo IdP do chat).
+## Como Funciona
+
+1. **Backend ai-pocs** lê `mcp_config.json` e cria `MCPClient` com a API key
+2. **MCPClient** envia requisições para o MCP server com header `X-API-KEY: <api_key>`
+3. **MCP Server** usa a API key para chamar Qlik Cloud API
+4. **Todas as tools são read-only** - apenas consulta de dados
+
+## Remover Código Antigo (OAuth)
+
+Se você tinha implementado OAuth anteriormente, pode remover:
+
+- `backend/routes/qlik_auth_routes.py` (ou manter comentado)
+- `backend/services/qlik_token_service.py`
+- Métodos de tokens do `database_service.py`
+- Endpoints de connect/disconnect do chat
+
+## Teste
+
+```bash
+# No chat, perguntar algo que acione qlik_get_apps
+# O MCP deve usar a API key configurada automaticamente
+```

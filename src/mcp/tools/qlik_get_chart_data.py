@@ -1,17 +1,15 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from src.mcp.tools.base_tool import BaseTool
-from src.qlik.auth import QlikAuth
 from src.qlik.engine import QlikEngineClient
 
 class QlikGetChartDataTool(BaseTool):
-    def __init__(self, qlik_auth: QlikAuth):
-        self.qlik_auth = qlik_auth
-        self.engine = QlikEngineClient(qlik_auth)
+    def __init__(self):
+        self.engine = QlikEngineClient()
     
     def get_schema(self) -> Dict[str, Any]:
         return {
             "name": "qlik_get_chart_data",
-            "description": "Extract data from a specific chart (visualization) in a Qlik app",
+            "description": "Extract data from a specific chart (visualization) in a Qlik app (read-only)",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -43,7 +41,7 @@ class QlikGetChartDataTool(BaseTool):
             }
         }
     
-    async def execute(self, user_id: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, arguments: Dict[str, Any], api_key: str) -> Dict[str, Any]:
         app_id = arguments.get("appId")
         object_id = arguments.get("objectId")
         page_size = arguments.get("pageSize", 100)
@@ -58,7 +56,7 @@ class QlikGetChartDataTool(BaseTool):
         result = await self.engine.get_hypercube_data(
             app_id,
             object_id,
-            user_id,
+            api_key,
             page_size=page_size,
             max_rows=max_rows,
             include_meta=include_meta

@@ -7,5 +7,5 @@ class BaseTool(ABC):
         pass
     
     @abstractmethod
-    async def execute(self, user_id: str, arguments: Dict[str, Any]) -> Any:
+    async def execute(self, arguments: Dict[str, Any], api_key: str) -> Any:
         pass

@@ -1,17 +1,15 @@
 from typing import Dict, Any
 from src.mcp.tools.base_tool import BaseTool
-from src.qlik.auth import QlikAuth
 from src.qlik.engine import QlikEngineClient
 
 class QlikGetAppSheetsTool(BaseTool):
-    def __init__(self, qlik_auth: QlikAuth):
-        self.qlik_auth = qlik_auth
-        self.engine = QlikEngineClient(qlik_auth)
+    def __init__(self):
+        self.engine = QlikEngineClient()
     
     def get_schema(self) -> Dict[str, Any]:
         return {
             "name": "qlik_get_app_sheets",
-            "description": "List all sheets in a Qlik Cloud app",
+            "description": "List all sheets in a Qlik Cloud app (read-only)",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -24,12 +22,12 @@ class QlikGetAppSheetsTool(BaseTool):
             }
         }
     
-    async def execute(self, user_id: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, arguments: Dict[str, Any], api_key: str) -> Dict[str, Any]:
         app_id = arguments.get("appId")
         if not app_id:
             raise ValueError("appId is required")
         
-        sheets = await self.engine.get_sheets(app_id, user_id)
+        sheets = await self.engine.get_sheets(app_id, api_key)
         
         return {
             "appId": app_id,
