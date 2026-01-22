@@ -105,16 +105,29 @@ async def mcp_endpoint(request: Request):
     
     # Se não veio do header, tentar usar do .env (fallback)
     if not api_key and requires_auth:
+        logger.info(f"No API key in header for method {method}, trying .env fallback...")
         from src.qlik.auth import QlikAuth
         qlik_auth = QlikAuth()
-        api_key = qlik_auth.get_api_key()
-        if api_key:
+        env_api_key = qlik_auth.get_api_key()
+        if env_api_key:
+            api_key = env_api_key
             api_key_source = "environment (.env)"
             api_key_preview = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
-            logger.info(f"API key from {api_key_source}: {api_key_preview} (length: {len(api_key)} chars)")
+            logger.info(f"✓ Using API key from {api_key_source}: {api_key_preview} (length: {len(api_key)} chars)")
+        else:
+            logger.warning(f"✗ No API key found in .env file. QLIK_CLOUD_API_KEY is not configured or is empty.")
     
     if requires_auth and not api_key:
-        logger.warning(f"Missing API key for method: {method} (from client application). Client should send X-API-KEY header or Authorization Bearer token.")
+        # Verificar se há API key no .env para dar mensagem mais específica
+        from src.qlik.auth import QlikAuth
+        qlik_auth_check = QlikAuth()
+        env_key_exists = qlik_auth_check.get_api_key() is not None
+        
+        if env_key_exists:
+            logger.warning(f"Missing API key for method: {method}. API key exists in .env but was not used. This may indicate a bug in the fallback logic.")
+        else:
+            logger.warning(f"Missing API key for method: {method}. No API key in header and QLIK_CLOUD_API_KEY not configured in .env file.")
+        
         return {
             "jsonrpc": "2.0",
             "id": request_id,

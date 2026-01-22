@@ -9,7 +9,7 @@ class QlikGetAppSheetsTool(BaseTool):
     def get_schema(self) -> Dict[str, Any]:
         return {
             "name": "qlik_get_app_sheets",
-            "description": "List all sheets in a Qlik Cloud app. READ-ONLY operation - only retrieves data, cannot create, modify or delete sheets.",
+            "description": "List all sheets (tabs/pages) in a Qlik Cloud app. Returns sheet IDs and metadata. Use the sheet ID with qlik_get_sheet_charts to explore visualizations within each sheet. READ-ONLY operation - only retrieves data, cannot create, modify or delete sheets.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
