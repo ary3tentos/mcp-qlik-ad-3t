@@ -14,8 +14,14 @@ class QlikRestClient:
     
     async def get_apps(self, api_key: str, limit: Optional[int] = None, cursor: Optional[str] = None, name: Optional[str] = None) -> Dict[str, Any]:
         """List Qlik Cloud apps using API key"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         if not api_key:
             raise Exception("Qlik Cloud API key is required")
+        
+        if not self.tenant_url:
+            raise Exception("QLIK_CLOUD_TENANT_URL is not configured. Please set it in your .env file.")
         
         url = f"{self.tenant_url}/api/v1/items"
         params = {"resourceType": "app"}
@@ -28,6 +34,7 @@ class QlikRestClient:
             params["name"] = name
         
         try:
+            logger.debug(f"Calling Qlik API: {url} with params: {params}")
             async with httpx.AsyncClient() as client:
                 response = await client.get(
                     url,
@@ -39,10 +46,25 @@ class QlikRestClient:
                     timeout=30.0
                 )
                 response.raise_for_status()
-                return response.json()
+                result = response.json()
+                logger.debug(f"Qlik API response: {len(result.get('data', []))} apps found")
+                return result
         except httpx.HTTPStatusError as e:
+            error_detail = ""
+            try:
+                error_detail = e.response.json()
+            except:
+                error_detail = e.response.text
+            
             if e.response.status_code == 401:
                 raise Exception("Invalid or expired Qlik API key. Please check QLIK_CLOUD_API_KEY configuration.")
-            raise Exception(f"Qlik API error: {e.response.status_code} - {e.response.text}")
+            elif e.response.status_code == 404:
+                raise Exception(f"Qlik API endpoint not found. Check if QLIK_CLOUD_TENANT_URL is correct: {self.tenant_url}")
+            else:
+                raise Exception(f"Qlik API error ({e.response.status_code}): {error_detail}")
+        except httpx.TimeoutException:
+            raise Exception("Timeout calling Qlik API. The request took longer than 30 seconds.")
+        except httpx.ConnectError as e:
+            raise Exception(f"Cannot connect to Qlik Cloud. Check QLIK_CLOUD_TENANT_URL: {self.tenant_url}. Error: {str(e)}")
         except Exception as e:
             raise Exception(f"Error calling Qlik API: {str(e)}")
