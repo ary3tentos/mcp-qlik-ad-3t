@@ -68,8 +68,20 @@ async def mcp_endpoint(request: Request):
             }
         }
     
-    method = body.get("method", "unknown")
+    method = body.get("method")
     request_id = body.get("id")
+    
+    # Verificar se o método está presente
+    if not method:
+        logger.warning(f"Request missing 'method' field. Body keys: {list(body.keys())}")
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "error": {
+                "code": -32600,
+                "message": "Invalid Request: 'method' field is required in JSON-RPC request"
+            }
+        }
     
     # Extrair API key do header (X-API-KEY ou Authorization Bearer)
     api_key = request.headers.get("X-API-KEY")
@@ -91,14 +103,24 @@ async def mcp_endpoint(request: Request):
     discovery_methods = ["initialize", "tools/list"]
     requires_auth = method not in discovery_methods
     
+    # Se não veio do header, tentar usar do .env (fallback)
+    if not api_key and requires_auth:
+        from src.qlik.auth import QlikAuth
+        qlik_auth = QlikAuth()
+        api_key = qlik_auth.get_api_key()
+        if api_key:
+            api_key_source = "environment (.env)"
+            api_key_preview = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
+            logger.info(f"API key from {api_key_source}: {api_key_preview} (length: {len(api_key)} chars)")
+    
     if requires_auth and not api_key:
-        logger.warning(f"Missing API key for method: {method}")
+        logger.warning(f"Missing API key for method: {method} (from client application). Client should send X-API-KEY header or Authorization Bearer token.")
         return {
             "jsonrpc": "2.0",
             "id": request_id,
             "error": {
                 "code": -32000,
-                "message": "Missing API key. Provide X-API-KEY header or Authorization Bearer token."
+                "message": "Missing API key. Provide X-API-KEY header or Authorization Bearer token. Alternatively, configure QLIK_CLOUD_API_KEY in server .env file."
             }
         }
     
