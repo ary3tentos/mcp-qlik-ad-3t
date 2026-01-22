@@ -73,10 +73,19 @@ async def mcp_endpoint(request: Request):
     
     # Extrair API key do header (X-API-KEY ou Authorization Bearer)
     api_key = request.headers.get("X-API-KEY")
+    api_key_source = "X-API-KEY header"
+    
     if not api_key:
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
-            api_key = auth_header.replace("Bearer ", "")
+            api_key = auth_header.replace("Bearer ", "").strip()
+            api_key_source = "Authorization Bearer header"
+    
+    # Limpar espaços extras da API key do header
+    if api_key:
+        api_key = api_key.strip()
+        api_key_preview = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
+        logger.info(f"API key from {api_key_source}: {api_key_preview} (length: {len(api_key)} chars)")
     
     # Métodos de descoberta não precisam de API key
     discovery_methods = ["initialize", "tools/list"]
@@ -94,7 +103,7 @@ async def mcp_endpoint(request: Request):
         }
     
     try:
-        logger.debug(f"Processing MCP method: {method}")
+        logger.info(f"Processing MCP method: {method}")
         result = await handler.handle_request(body, api_key=api_key)
         return result
     except Exception as e:
