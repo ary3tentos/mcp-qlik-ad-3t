@@ -64,8 +64,18 @@ class MCPHandler:
             
             params = body.get("params", {})
             
-            # Usar API key do parâmetro ou do ambiente
-            qlik_api_key = api_key or self.qlik_auth.get_api_key()
+            # Usar API key do parâmetro ou do ambiente (fallback)
+            # Se api_key foi passado (do header ou .env já resolvido no main), usar
+            # Caso contrário, tentar do .env novamente como último recurso
+            if api_key:
+                qlik_api_key = api_key
+            else:
+                env_api_key = self.qlik_auth.get_api_key()
+                if env_api_key:
+                    qlik_api_key = env_api_key
+                    logger.info(f"Using API key from .env fallback in handler")
+                else:
+                    qlik_api_key = None
             
             if method == "initialize":
                 logger.info("Handling initialize request")

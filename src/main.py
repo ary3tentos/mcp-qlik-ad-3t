@@ -8,7 +8,12 @@ from dotenv import load_dotenv
 
 from src.mcp.handler import MCPHandler
 
+# Carregar .env explicitamente
 load_dotenv()
+
+# Verificar se variáveis críticas estão configuradas (apenas para log)
+if not os.getenv("QLIK_CLOUD_API_KEY"):
+    logging.warning("QLIK_CLOUD_API_KEY not found in environment. Server will require API key in request headers.")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -104,18 +109,25 @@ async def mcp_endpoint(request: Request):
     requires_auth = method not in discovery_methods
     
     # Se não veio do header, tentar usar do .env (fallback)
+    # IMPORTANTE: Sempre tentar usar .env como fallback para métodos que requerem auth
     if not api_key and requires_auth:
         logger.info(f"No API key in header for method {method}, trying .env fallback...")
         from src.qlik.auth import QlikAuth
         qlik_auth = QlikAuth()
         env_api_key = qlik_auth.get_api_key()
-        if env_api_key:
+        if env_api_key and len(env_api_key.strip()) > 0:
             api_key = env_api_key
             api_key_source = "environment (.env)"
             api_key_preview = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
             logger.info(f"✓ Using API key from {api_key_source}: {api_key_preview} (length: {len(api_key)} chars)")
         else:
             logger.warning(f"✗ No API key found in .env file. QLIK_CLOUD_API_KEY is not configured or is empty.")
+            # Verificar se a variável existe mas está vazia
+            env_raw = os.getenv("QLIK_CLOUD_API_KEY")
+            if env_raw is not None:
+                logger.warning(f"  QLIK_CLOUD_API_KEY exists in environment but is empty or whitespace only")
+            else:
+                logger.warning(f"  QLIK_CLOUD_API_KEY variable not found in environment")
     
     if requires_auth and not api_key:
         # Verificar se há API key no .env para dar mensagem mais específica
@@ -139,7 +151,9 @@ async def mcp_endpoint(request: Request):
     
     try:
         logger.info(f"Processing MCP method: {method}")
-        result = await handler.handle_request(body, api_key=api_key)
+        # Passar API key para o handler (pode ser do header ou do .env)
+        # Se api_key for None, o handler tentará usar do .env como fallback
+        result = await handler.handle_request(body, api_key=api_key if api_key else None)
         return result
     except Exception as e:
         logger.error(f"Error handling MCP request: {str(e)}")
