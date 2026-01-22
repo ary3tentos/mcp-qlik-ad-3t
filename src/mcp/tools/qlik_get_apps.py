@@ -113,10 +113,12 @@ class QlikGetAppsTool(BaseTool):
             raise
         except Exception as e:
             error_msg = str(e)
-            logger.error(f"Error fetching Qlik apps: {error_msg}", exc_info=True)
             
-            # Se a mensagem já é clara (vem do client), não duplicar
+            # Se a mensagem já é clara (vem do client), não duplicar e não logar stack trace completo
             if "API key" in error_msg or "QLIK_CLOUD" in error_msg or "Qlik API" in error_msg:
-                raise Exception(error_msg)
+                logger.error(f"Error fetching Qlik apps: {error_msg}")
+                # Usar 'from None' para evitar stack trace duplicado
+                raise Exception(error_msg) from None
             else:
-                raise Exception(f"Failed to fetch Qlik apps: {error_msg}")
+                logger.error(f"Error fetching Qlik apps: {error_msg}", exc_info=True)
+                raise Exception(f"Failed to fetch Qlik apps: {error_msg}") from None

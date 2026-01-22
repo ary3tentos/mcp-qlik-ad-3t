@@ -178,21 +178,25 @@ class MCPHandler:
                     }
                 except Exception as e:
                     error_msg = str(e)
-                    logger.error(f"Error executing tool {tool_name}: {error_msg}", exc_info=True)
                     
-                    # Mensagens de erro mais específicas para casos comuns
+                    # Determinar código de erro e mensagem baseado no tipo
                     if "API key" in error_msg or "QLIK_CLOUD_API_KEY" in error_msg:
                         error_code = -32000
                         error_message = error_msg
+                        # Não logar stack trace completo para erros de autenticação conhecidos
+                        logger.error(f"Error executing tool {tool_name}: {error_message}")
                     elif "Timeout" in error_msg or "timeout" in error_msg:
                         error_code = -32603
                         error_message = f"Request timeout: {error_msg}"
+                        logger.error(f"Error executing tool {tool_name}: {error_message}")
                     elif "Cannot connect" in error_msg or "ConnectError" in error_msg:
                         error_code = -32603
                         error_message = f"Connection error: {error_msg}"
+                        logger.error(f"Error executing tool {tool_name}: {error_message}")
                     else:
                         error_code = -32603
                         error_message = f"Error executing tool '{tool_name}': {error_msg}"
+                        logger.error(f"Error executing tool {tool_name}: {error_message}", exc_info=True)
                     
                     return {
                         "jsonrpc": "2.0",

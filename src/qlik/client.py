@@ -57,14 +57,18 @@ class QlikRestClient:
                 error_detail = e.response.text
             
             if e.response.status_code == 401:
-                raise Exception("Invalid or expired Qlik API key. Please check QLIK_CLOUD_API_KEY configuration.")
+                # Usar 'from None' para evitar stack trace duplicado
+                raise Exception("Invalid or expired Qlik API key. Please check QLIK_CLOUD_API_KEY configuration.") from None
             elif e.response.status_code == 404:
-                raise Exception(f"Qlik API endpoint not found. Check if QLIK_CLOUD_TENANT_URL is correct: {self.tenant_url}")
+                raise Exception(f"Qlik API endpoint not found. Check if QLIK_CLOUD_TENANT_URL is correct: {self.tenant_url}") from None
             else:
-                raise Exception(f"Qlik API error ({e.response.status_code}): {error_detail}")
+                raise Exception(f"Qlik API error ({e.response.status_code}): {error_detail}") from None
         except httpx.TimeoutException:
-            raise Exception("Timeout calling Qlik API. The request took longer than 30 seconds.")
+            raise Exception("Timeout calling Qlik API. The request took longer than 30 seconds.") from None
         except httpx.ConnectError as e:
-            raise Exception(f"Cannot connect to Qlik Cloud. Check QLIK_CLOUD_TENANT_URL: {self.tenant_url}. Error: {str(e)}")
+            raise Exception(f"Cannot connect to Qlik Cloud. Check QLIK_CLOUD_TENANT_URL: {self.tenant_url}. Error: {str(e)}") from None
         except Exception as e:
-            raise Exception(f"Error calling Qlik API: {str(e)}")
+            # Se já é uma Exception nossa, não relançar para evitar duplicação
+            if "Qlik" in str(e) or "API" in str(e):
+                raise
+            raise Exception(f"Error calling Qlik API: {str(e)}") from None
