@@ -177,13 +177,29 @@ class MCPHandler:
                         }
                     }
                 except Exception as e:
-                    logger.error(f"Error executing tool {tool_name}: {str(e)}", exc_info=True)
+                    error_msg = str(e)
+                    logger.error(f"Error executing tool {tool_name}: {error_msg}", exc_info=True)
+                    
+                    # Mensagens de erro mais específicas para casos comuns
+                    if "API key" in error_msg or "QLIK_CLOUD_API_KEY" in error_msg:
+                        error_code = -32000
+                        error_message = error_msg
+                    elif "Timeout" in error_msg or "timeout" in error_msg:
+                        error_code = -32603
+                        error_message = f"Request timeout: {error_msg}"
+                    elif "Cannot connect" in error_msg or "ConnectError" in error_msg:
+                        error_code = -32603
+                        error_message = f"Connection error: {error_msg}"
+                    else:
+                        error_code = -32603
+                        error_message = f"Error executing tool '{tool_name}': {error_msg}"
+                    
                     return {
                         "jsonrpc": "2.0",
                         "id": request_id,
                         "error": {
-                            "code": -32603,
-                            "message": f"Error executing tool '{tool_name}': {str(e)}"
+                            "code": error_code,
+                            "message": error_message
                         }
                     }
             

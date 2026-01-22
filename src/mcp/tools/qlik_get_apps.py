@@ -36,6 +36,9 @@ class QlikGetAppsTool(BaseTool):
         logger = logging.getLogger(__name__)
         
         try:
+            if not api_key:
+                raise ValueError("Qlik Cloud API key is required. Please provide it in the request header (X-API-KEY) or configure QLIK_CLOUD_API_KEY in environment variables.")
+            
             limit = arguments.get("limit")
             cursor = arguments.get("cursor")
             name = arguments.get("name")
@@ -109,5 +112,11 @@ class QlikGetAppsTool(BaseTool):
             logger.error(f"Validation error: {str(e)}")
             raise
         except Exception as e:
-            logger.error(f"Error fetching Qlik apps: {str(e)}", exc_info=True)
-            raise Exception(f"Failed to fetch Qlik apps: {str(e)}")
+            error_msg = str(e)
+            logger.error(f"Error fetching Qlik apps: {error_msg}", exc_info=True)
+            
+            # Se a mensagem já é clara (vem do client), não duplicar
+            if "API key" in error_msg or "QLIK_CLOUD" in error_msg or "Qlik API" in error_msg:
+                raise Exception(error_msg)
+            else:
+                raise Exception(f"Failed to fetch Qlik apps: {error_msg}")
