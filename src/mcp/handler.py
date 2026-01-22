@@ -160,7 +160,10 @@ class MCPHandler:
                     }
                 
                 try:
-                    logger.info(f"Executing tool: {tool_name}")
+                    # Log da origem da API key para debug
+                    api_key_source = "header" if api_key else "environment"
+                    api_key_preview = f"{qlik_api_key[:8]}...{qlik_api_key[-4:]}" if qlik_api_key and len(qlik_api_key) > 12 else "not set"
+                    logger.info(f"Executing tool: {tool_name} (API key from: {api_key_source}, preview: {api_key_preview})")
                     tool_instance = self.tools[tool_name]
                     result = await tool_instance.execute(arguments, qlik_api_key)
                     

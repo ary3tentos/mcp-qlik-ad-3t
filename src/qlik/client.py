@@ -20,8 +20,18 @@ class QlikRestClient:
         if not api_key:
             raise Exception("Qlik Cloud API key is required")
         
+        # Limpar espaços extras da API key
+        api_key = api_key.strip()
+        
+        if not api_key:
+            raise Exception("Qlik Cloud API key is empty after cleaning. Please check QLIK_CLOUD_API_KEY configuration.")
+        
         if not self.tenant_url:
             raise Exception("QLIK_CLOUD_TENANT_URL is not configured. Please set it in your .env file.")
+        
+        # Validar formato básico da API key (deve ter pelo menos alguns caracteres)
+        if len(api_key) < 10:
+            raise Exception("Qlik Cloud API key appears to be too short. Please verify QLIK_CLOUD_API_KEY configuration.")
         
         url = f"{self.tenant_url}/api/v1/items"
         params = {"resourceType": "app"}
@@ -34,7 +44,11 @@ class QlikRestClient:
             params["name"] = name
         
         try:
-            logger.debug(f"Calling Qlik API: {url} with params: {params}")
+            logger.info(f"Calling Qlik API: {url} with params: {params}")
+            # Log mascarado da API key (primeiros 8 e últimos 4 caracteres) para debug
+            api_key_preview = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
+            logger.info(f"Using API key (preview): {api_key_preview} (length: {len(api_key)} chars)")
+            
             async with httpx.AsyncClient() as client:
                 response = await client.get(
                     url,
