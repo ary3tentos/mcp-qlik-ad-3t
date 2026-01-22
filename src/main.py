@@ -3,19 +3,33 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import uvicorn
 import os
+import logging
 from dotenv import load_dotenv
 
 from src.mcp.handler import MCPHandler
 
 load_dotenv()
 
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 handler = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global handler
-    handler = MCPHandler()  # Stateless - não precisa de token_store
+    try:
+        logger.info("Initializing MCP Handler...")
+        handler = MCPHandler()
+        logger.info("MCP Handler initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize MCP Handler: {str(e)}", exc_info=True)
+        raise
     yield
+    logger.info("Shutting down MCP Handler...")
 
 app = FastAPI(title="Qlik Cloud MCP Server", lifespan=lifespan)
 
@@ -29,8 +43,33 @@ app.add_middleware(
 
 @app.post("/mcp")
 async def mcp_endpoint(request: Request):
-    import logging
-    logger = logging.getLogger(__name__)
+    
+    if handler is None:
+        logger.error("MCP handler not initialized")
+        return {
+            "jsonrpc": "2.0",
+            "id": None,
+            "error": {
+                "code": -32603,
+                "message": "Server not initialized"
+            }
+        }
+    
+    try:
+        body = await request.json()
+    except Exception as e:
+        logger.error(f"Invalid JSON in request: {str(e)}")
+        return {
+            "jsonrpc": "2.0",
+            "id": None,
+            "error": {
+                "code": -32700,
+                "message": "Parse error: Invalid JSON"
+            }
+        }
+    
+    method = body.get("method", "unknown")
+    request_id = body.get("id")
     
     # Extrair API key do header (X-API-KEY ou Authorization Bearer)
     api_key = request.headers.get("X-API-KEY")
@@ -39,13 +78,22 @@ async def mcp_endpoint(request: Request):
         if auth_header.startswith("Bearer "):
             api_key = auth_header.replace("Bearer ", "")
     
-    if not api_key:
-        logger.warning("Missing API key")
-        raise HTTPException(status_code=401, detail="Missing API key. Provide X-API-KEY header or Authorization Bearer token.")
+    # Métodos de descoberta não precisam de API key
+    discovery_methods = ["initialize", "tools/list"]
+    requires_auth = method not in discovery_methods
+    
+    if requires_auth and not api_key:
+        logger.warning(f"Missing API key for method: {method}")
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "error": {
+                "code": -32000,
+                "message": "Missing API key. Provide X-API-KEY header or Authorization Bearer token."
+            }
+        }
     
     try:
-        body = await request.json()
-        method = body.get("method", "unknown")
         logger.debug(f"Processing MCP method: {method}")
         result = await handler.handle_request(body, api_key=api_key)
         return result
@@ -55,10 +103,10 @@ async def mcp_endpoint(request: Request):
         logger.error(traceback.format_exc())
         return {
             "jsonrpc": "2.0",
-            "id": body.get("id") if "body" in locals() else None,
+            "id": request_id,
             "error": {
                 "code": -32603,
-                "message": str(e)
+                "message": f"Internal error: {str(e)}"
             }
         }
 
@@ -72,4 +120,5 @@ async def health():
 if __name__ == "__main__":
     port = int(os.getenv("MCP_SERVER_PORT", 8080))
     host = os.getenv("MCP_SERVER_HOST", "0.0.0.0")
-    uvicorn.run(app, host=host, port=port)
+    logger.info(f"Starting Qlik Cloud MCP Server on {host}:{port}")
+    uvicorn.run(app, host=host, port=port, log_level="info")

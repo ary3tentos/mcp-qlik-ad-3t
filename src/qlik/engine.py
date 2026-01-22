@@ -5,6 +5,18 @@ import os
 from typing import Optional, Dict, Any, List
 
 class QlikEngineClient:
+    """
+    Qlik Engine API Client (WebSocket) - READ-ONLY operations only.
+    
+    This client only performs read operations via QIX protocol:
+    - OpenDoc: Open app for reading
+    - GetSheets: List sheets
+    - GetSheetObjects: List objects in a sheet
+    - GetObject: Get object metadata
+    - GetHyperCubeData: Get data from visualizations
+    
+    No create, update, delete, or modify operations are implemented.
+    """
     def __init__(self):
         self.tenant_url = os.getenv("QLIK_CLOUD_TENANT_URL", "").rstrip("/")
         self.ws_url = self.tenant_url.replace("https://", "wss://").replace("http://", "ws://")

@@ -3,6 +3,12 @@ import os
 from typing import Optional, Dict, Any, List
 
 class QlikRestClient:
+    """
+    Qlik REST API Client - READ-ONLY operations only.
+    
+    This client only performs GET requests to retrieve data.
+    No POST, PUT, DELETE, or PATCH operations are implemented.
+    """
     def __init__(self):
         self.tenant_url = os.getenv("QLIK_CLOUD_TENANT_URL", "").rstrip("/")
     

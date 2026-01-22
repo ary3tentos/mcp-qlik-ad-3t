@@ -9,7 +9,7 @@ class QlikGetSheetChartsTool(BaseTool):
     def get_schema(self) -> Dict[str, Any]:
         return {
             "name": "qlik_get_sheet_charts",
-            "description": "List all charts (visualizations) in a specific sheet of a Qlik app (read-only)",
+            "description": "List all charts (visualizations) in a specific sheet of a Qlik app. READ-ONLY operation - only retrieves data, cannot create, modify or delete charts.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

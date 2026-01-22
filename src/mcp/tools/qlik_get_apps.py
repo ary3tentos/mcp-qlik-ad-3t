@@ -9,7 +9,7 @@ class QlikGetAppsTool(BaseTool):
     def get_schema(self) -> Dict[str, Any]:
         return {
             "name": "qlik_get_apps",
-            "description": "List available Qlik Cloud apps (read-only)",
+            "description": "List available Qlik Cloud apps. READ-ONLY operation - only retrieves data, cannot create, modify or delete apps.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
