@@ -98,11 +98,14 @@ async def mcp_endpoint(request: Request):
             api_key = auth_header.replace("Bearer ", "").strip()
             api_key_source = "Authorization Bearer header"
     
-    # Limpar espaços extras da API key do header
+    # Limpar espaços extras da API key do header e tratar strings vazias como None
     if api_key:
         api_key = api_key.strip()
-        api_key_preview = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
-        logger.info(f"API key from {api_key_source}: {api_key_preview} (length: {len(api_key)} chars)")
+        if not api_key:
+            api_key = None
+        else:
+            api_key_preview = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
+            logger.info(f"API key from {api_key_source}: {api_key_preview} (length: {len(api_key)} chars)")
     
     # Métodos de descoberta não precisam de API key
     discovery_methods = ["initialize", "tools/list"]
@@ -115,7 +118,7 @@ async def mcp_endpoint(request: Request):
         from src.qlik.auth import QlikAuth
         qlik_auth = QlikAuth()
         env_api_key = qlik_auth.get_api_key()
-        if env_api_key and len(env_api_key.strip()) > 0:
+        if env_api_key:
             api_key = env_api_key
             api_key_source = "environment (.env)"
             api_key_preview = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
@@ -152,8 +155,8 @@ async def mcp_endpoint(request: Request):
     try:
         logger.info(f"Processing MCP method: {method}")
         # Passar API key para o handler (pode ser do header ou do .env)
-        # Se api_key for None, o handler tentará usar do .env como fallback
-        result = await handler.handle_request(body, api_key=api_key if api_key else None)
+        # Se api_key for None ou string vazia, passar None (o handler tentará usar do .env como fallback)
+        result = await handler.handle_request(body, api_key=api_key if (api_key and api_key.strip()) else None)
         return result
     except Exception as e:
         logger.error(f"Error handling MCP request: {str(e)}")

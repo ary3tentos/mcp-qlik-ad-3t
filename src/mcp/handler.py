@@ -67,8 +67,8 @@ class MCPHandler:
             # Usar API key do parâmetro ou do ambiente (fallback)
             # Se api_key foi passado (do header ou .env já resolvido no main), usar
             # Caso contrário, tentar do .env novamente como último recurso
-            if api_key:
-                qlik_api_key = api_key
+            if api_key and api_key.strip():
+                qlik_api_key = api_key.strip()
             else:
                 env_api_key = self.qlik_auth.get_api_key()
                 if env_api_key:
