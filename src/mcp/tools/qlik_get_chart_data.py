@@ -41,18 +41,24 @@ class QlikGetChartDataTool(BaseTool):
             }
         }
     
+    def _normalise_id(self, val: Any) -> str:
+        if val is None:
+            return ""
+        s = str(val).strip()
+        if s.startswith("{{") and s.endswith("}}"):
+            s = s[2:-2].strip()
+        return s
+
     async def execute(self, arguments: Dict[str, Any], api_key: str) -> Dict[str, Any]:
-        app_id = arguments.get("appId")
-        object_id = arguments.get("objectId")
+        app_id = self._normalise_id(arguments.get("appId"))
+        object_id = self._normalise_id(arguments.get("objectId"))
         page_size = arguments.get("pageSize", 100)
         max_rows = arguments.get("maxRows")
         include_meta = arguments.get("includeMeta", False)
-        
         if not app_id:
-            raise ValueError("appId is required")
+            raise ValueError("appId is required. Use resourceId from qlik_get_apps (no {{ }}).")
         if not object_id:
-            raise ValueError("objectId is required")
-        
+            raise ValueError("objectId is required (no {{ }}).")
         result = await self.engine.get_hypercube_data(
             app_id,
             object_id,

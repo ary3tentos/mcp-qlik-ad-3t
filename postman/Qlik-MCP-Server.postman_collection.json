@@ -1,0 +1,269 @@
+{
+	"info": {
+		"_postman_id": "qlik-mcp-server-collection",
+		"name": "Qlik MCP Server",
+		"description": "Servidor MCP em http://localhost:8082. Defina base_url = http://localhost:8082 (sem barra no final). Para tools/call defina api_key. Token: header Authorization Bearer ou X-API-KEY.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{ "key": "base_url", "value": "http://localhost:8082" },
+		{ "key": "api_key", "value": "" },
+		{ "key": "app_id", "value": "" },
+		{ "key": "sheet_id", "value": "" },
+		{ "key": "object_id", "value": "" }
+	],
+	"item": [
+		{
+			"name": "Raiz e Health",
+			"item": [
+				{
+					"name": "GET /",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/",
+							"host": ["{{base_url}}"],
+							"path": [""]
+						},
+						"description": "Informações do serviço. Deve retornar 200."
+					}
+				},
+				{
+					"name": "GET /health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": ["{{base_url}}"],
+							"path": ["health"]
+						},
+						"description": "Health check. Deve retornar 200 e {\"status\":\"ok\"}."
+					}
+				}
+			]
+		},
+		{
+			"name": "MCP",
+			"item": [
+				{
+					"name": "POST /mcp - initialize",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json", "type": "text" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\"}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{base_url}}/mcp",
+							"host": ["{{base_url}}"],
+							"path": ["mcp"]
+						},
+						"description": "JSON-RPC initialize. Não precisa de api_key. Body obrigatório em raw JSON."
+					}
+				},
+				{
+					"name": "POST /mcp - tools/list",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json", "type": "text" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{base_url}}/mcp",
+							"host": ["{{base_url}}"],
+							"path": ["mcp"]
+						},
+						"description": "Lista tools. Não precisa de api_key. Body obrigatório em raw JSON."
+					}
+				}
+			]
+		},
+		{
+			"name": "Tools Node",
+			"item": [
+				{
+					"name": "qlik.list_apps",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json", "type": "text" },
+							{ "key": "Authorization", "value": "Bearer {{api_key}}", "type": "text" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"qlik.list_apps\",\"arguments\":{\"limit\":20}}}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{base_url}}/mcp",
+							"host": ["{{base_url}}"],
+							"path": ["mcp"]
+						},
+						"description": "Requer api_key (Bearer ou X-API-KEY). Servidor Node."
+					}
+				},
+				{
+					"name": "qlik.list_apps (filtro name)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json", "type": "text" },
+							{ "key": "Authorization", "value": "Bearer {{api_key}}", "type": "text" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"qlik.list_apps\",\"arguments\":{\"limit\":20,\"name\":\"Fluxo\"}}}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{base_url}}/mcp",
+							"host": ["{{base_url}}"],
+							"path": ["mcp"]
+						}
+					}
+				},
+				{
+					"name": "qlik.list_sheets",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json", "type": "text" },
+							{ "key": "Authorization", "value": "Bearer {{api_key}}", "type": "text" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/call\",\"params\":{\"name\":\"qlik.list_sheets\",\"arguments\":{\"appId\":\"{{app_id}}\"}}}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{base_url}}/mcp",
+							"host": ["{{base_url}}"],
+							"path": ["mcp"]
+						},
+						"description": "Defina app_id. Requer api_key."
+					}
+				}
+			]
+		},
+		{
+			"name": "Tools Python",
+			"item": [
+				{
+					"name": "qlik_get_apps",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json", "type": "text" },
+							{ "key": "Authorization", "value": "Bearer {{api_key}}", "type": "text" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/call\",\"params\":{\"name\":\"qlik_get_apps\",\"arguments\":{\"limit\":20}}}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{base_url}}/mcp",
+							"host": ["{{base_url}}"],
+							"path": ["mcp"]
+						},
+						"description": "Requer api_key. Servidor Python."
+					}
+				},
+				{
+					"name": "qlik_get_apps (filtro)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json", "type": "text" },
+							{ "key": "X-API-KEY", "value": "{{api_key}}", "type": "text" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"tools/call\",\"params\":{\"name\":\"qlik_get_apps\",\"arguments\":{\"limit\":20,\"name\":\"Fluxo\"}}}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{base_url}}/mcp",
+							"host": ["{{base_url}}"],
+							"path": ["mcp"]
+						}
+					}
+				},
+				{
+					"name": "qlik_get_app_sheets",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json", "type": "text" },
+							{ "key": "X-API-KEY", "value": "{{api_key}}", "type": "text" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"tools/call\",\"params\":{\"name\":\"qlik_get_app_sheets\",\"arguments\":{\"appId\":\"{{app_id}}\"}}}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{base_url}}/mcp",
+							"host": ["{{base_url}}"],
+							"path": ["mcp"]
+						},
+						"description": "Use app_id = resourceId do app (de qlik_get_apps). No environment, valor só o id, ex: 636d37c753782e98b7ea0a66 (sem {{ }}). Evita QEP-101. Requer api_key."
+					}
+				},
+				{
+					"name": "qlik_get_sheet_charts",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json", "type": "text" },
+							{ "key": "X-API-KEY", "value": "{{api_key}}", "type": "text" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"qlik_get_sheet_charts\",\"arguments\":{\"appId\":\"{{app_id}}\",\"sheetId\":\"{{sheet_id}}\"}}}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{base_url}}/mcp",
+							"host": ["{{base_url}}"],
+							"path": ["mcp"]
+						},
+						"description": "app_id e sheet_id = apenas os ids (sem {{ }}). Use resourceId do app. Requer api_key."
+					}
+				},
+				{
+					"name": "qlik_get_chart_data",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json", "type": "text" },
+							{ "key": "X-API-KEY", "value": "{{api_key}}", "type": "text" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"jsonrpc\":\"2.0\",\"id\":10,\"method\":\"tools/call\",\"params\":{\"name\":\"qlik_get_chart_data\",\"arguments\":{\"appId\":\"{{app_id}}\",\"objectId\":\"{{object_id}}\",\"pageSize\":100,\"maxRows\":500,\"includeMeta\":true}}}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{base_url}}/mcp",
+							"host": ["{{base_url}}"],
+							"path": ["mcp"]
+						},
+						"description": "app_id e object_id = apenas os ids (sem {{ }}). Use resourceId do app. Requer api_key."
+					}
+				}
+			]
+		}
+	]
+}

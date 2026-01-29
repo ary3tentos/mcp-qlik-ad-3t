@@ -1,0 +1,128 @@
+{
+	"info": {
+		"_postman_id": "qlik-cloud-api-collection",
+		"name": "Qlik Cloud REST API",
+		"description": "Rotas oficiais da Qlik Cloud REST API (https://qlik.dev/apis/rest/). Sem localhost: chama direto o tenant. Defina base_url (ex: https://seu-tenant.us.qlikcloud.com) e api_key.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{ "key": "base_url", "value": "https://your-tenant.us.qlikcloud.com" },
+		{ "key": "api_key", "value": "" },
+		{ "key": "item_id", "value": "" },
+		{ "key": "space_id", "value": "" },
+		{ "key": "app_id", "value": "" }
+	],
+	"item": [
+		{
+			"name": "Items",
+			"item": [
+				{
+					"name": "GET /api/v1/items (listar apps)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{api_key}}", "type": "text" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"url": "{{base_url}}/api/v1/items?resourceType=app&limit=20",
+						"description": "Lista items do tipo app. Params: resourceType=app, limit (1-100), name, spaceId, next, prev, sort."
+					}
+				},
+				{
+					"name": "GET /api/v1/items (filtrar por nome)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{api_key}}", "type": "text" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"url": "{{base_url}}/api/v1/items?resourceType=app&limit=20&name=Fluxo",
+						"description": "Lista apps com filtro por nome (case-insensitive)."
+					}
+				},
+				{
+					"name": "GET /api/v1/items/{itemId}",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{api_key}}", "type": "text" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"url": "{{base_url}}/api/v1/items/{{item_id}}",
+						"description": "Retorna um item pelo ID. Defina item_id nas variáveis."
+					}
+				},
+				{
+					"name": "GET /api/v1/items/settings",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{api_key}}", "type": "text" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"url": "{{base_url}}/api/v1/items/settings",
+						"description": "Configurações do serviço de items (ex.: usageMetricsEnabled)."
+					}
+				},
+				{
+					"name": "GET /api/v1/items/{itemId}/collections",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{api_key}}", "type": "text" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"url": "{{base_url}}/api/v1/items/{{item_id}}/collections",
+						"description": "Lista coleções (tags) do item."
+					}
+				}
+			]
+		},
+		{
+			"name": "Spaces",
+			"item": [
+				{
+					"name": "GET /api/v1/spaces",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{api_key}}", "type": "text" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"url": "{{base_url}}/api/v1/spaces?limit=20",
+						"description": "Lista spaces que o usuário pode acessar. Params: limit, name, ownerId, type."
+					}
+				},
+				{
+					"name": "GET /api/v1/spaces/{spaceId}",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{api_key}}", "type": "text" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"url": "{{base_url}}/api/v1/spaces/{{space_id}}",
+						"description": "Detalhes de um space. Defina space_id nas variáveis."
+					}
+				}
+			]
+		},
+		{
+			"name": "Apps",
+			"item": [
+				{
+					"name": "GET /api/v1/apps/{appId}",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{api_key}}", "type": "text" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"url": "{{base_url}}/api/v1/apps/{{app_id}}",
+						"description": "Detalhes de um app pelo resourceId (app ID). Defina app_id nas variáveis."
+					}
+				}
+			]
+		}
+	]
+}

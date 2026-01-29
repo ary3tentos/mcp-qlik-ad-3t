@@ -26,15 +26,21 @@ class QlikGetSheetChartsTool(BaseTool):
             }
         }
     
+    def _normalise_id(self, val: Any) -> str:
+        if val is None:
+            return ""
+        s = str(val).strip()
+        if s.startswith("{{") and s.endswith("}}"):
+            s = s[2:-2].strip()
+        return s
+
     async def execute(self, arguments: Dict[str, Any], api_key: str) -> Dict[str, Any]:
-        app_id = arguments.get("appId")
-        sheet_id = arguments.get("sheetId")
-        
+        app_id = self._normalise_id(arguments.get("appId"))
+        sheet_id = self._normalise_id(arguments.get("sheetId"))
         if not app_id:
-            raise ValueError("appId is required")
+            raise ValueError("appId is required. Use resourceId from qlik_get_apps (no {{ }}).")
         if not sheet_id:
-            raise ValueError("sheetId is required")
-        
+            raise ValueError("sheetId is required (no {{ }}).")
         charts = await self.engine.get_sheet_objects(app_id, sheet_id, api_key)
         
         return {

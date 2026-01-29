@@ -2,7 +2,10 @@ import asyncio
 import json
 import websockets
 import os
+import logging
 from typing import Optional, Dict, Any, List
+
+logger = logging.getLogger(__name__)
 
 class QlikEngineClient:
     """
@@ -37,13 +40,39 @@ class QlikEngineClient:
             raise Exception("Qlik Cloud API key is required")
         
         ws_url = self._get_ws_url(app_id)
+        origin = self.tenant_url if self.tenant_url.startswith("http") else f"https://{self.tenant_url}"
+        if origin.startswith("wss://"):
+            origin = "https://" + origin[6:]
+        elif origin.startswith("ws://"):
+            origin = "http://" + origin[5:]
         headers = {
-            "Authorization": f"Bearer {api_key}"
+            "Authorization": f"Bearer {api_key}",
+            "Origin": origin.rstrip("/"),
         }
-        
-        ws = await websockets.connect(ws_url, extra_headers=headers)
-        self.connections[cache_key] = ws
-        return ws
+        logger.info("Connecting to Qlik Engine API WebSocket: %s", ws_url)
+        try:
+            ws = await websockets.connect(ws_url, extra_headers=headers)
+            self.connections[cache_key] = ws
+            logger.info(f"Successfully connected to Qlik Engine API WebSocket for app {app_id}")
+            return ws
+        except websockets.exceptions.ConnectionClosedError as e:
+            err_str = str(e)
+            if "QEP-101" in err_str:
+                raise Exception(
+                    "Engine rejected the connection (QEP-101). Use the app resourceId from qlik_get_apps (field resourceId or id of the app item), not the item id. "
+                    "Ensure the API key has access to the app and to the Engine API. In Postman, set app_id to the value only (e.g. 636d37c753782e98b7ea0a66), without {{ }}."
+                ) from None
+            if "QEP-104" in err_str or "4204" in err_str or ("QEP" in err_str and "104" in err_str):
+                raise Exception(
+                    "Engine QEP-104: a API key não tem permissão para o Engine API. "
+                    "No Qlik Cloud verifique se a API key tem acesso ao Engine e ao app."
+                ) from None
+            logger.error("Qlik Engine WebSocket closed: %s", err_str)
+            raise Exception(f"Qlik Engine WebSocket connection closed: {err_str}") from None
+        except Exception as e:
+            error_msg = f"Failed to connect to Qlik Engine API WebSocket: {str(e)}"
+            logger.error(error_msg)
+            raise Exception(error_msg) from None
     
     async def _send_qix_request(self, ws: websockets.WebSocketClientProtocol, method: str, params: List[Any] = None, handle: int = None) -> Dict[str, Any]:
         if params is None:
@@ -56,15 +85,51 @@ class QlikEngineClient:
             "params": params
         }
         
-        await ws.send(json.dumps(request))
-        response = await ws.recv()
-        return json.loads(response)
+        try:
+            await ws.send(json.dumps(request))
+            response = await ws.recv()
+            result = json.loads(response)
+            
+            if "error" in result:
+                error_code = str(result["error"].get("code", "unknown"))
+                error_message = result["error"].get("message", str(result["error"]))
+                logger.error("QIX API error: code=%s, message=%s", error_code, error_message)
+                if error_code == "QEP-104" or "QEP-104" in error_code or "QEP-104" in str(result["error"]):
+                    raise Exception(
+                        "Engine QEP-104: a API key não tem permissão para o Engine API ou para este app. "
+                        "No Qlik Cloud: verifique se a API key tem acesso ao Engine e ao app; use uma API key de usuário que possa abrir o app."
+                    )
+                raise Exception(f"QIX error: {error_code} - {error_message}")
+            
+            return result
+        except websockets.exceptions.ConnectionClosedError as e:
+            err_str = str(e)
+            if "QEP-101" in err_str or ("QEP" in err_str and "101" in err_str):
+                raise Exception(
+                    "Engine QEP-101: connection rejected. Use the app resourceId from qlik_get_apps. "
+                    "Ensure app_id is the raw id (e.g. 636d37c753782e98b7ea0a66) with no {{ }}. Check API key has Engine and app access."
+                ) from None
+            if "QEP-104" in err_str or "4204" in err_str or ("QEP" in err_str and "104" in err_str):
+                raise Exception(
+                    "Engine QEP-104: a API key não tem permissão para o Engine API ou para este app. "
+                    "No Qlik Cloud: verifique se a API key tem acesso ao Engine e ao app; use uma API key de usuário que possa abrir o app."
+                ) from None
+            logger.error("WebSocket closed during QIX request: %s", err_str)
+            raise Exception(f"WebSocket connection closed during QIX request: {err_str}") from None
+        except json.JSONDecodeError as e:
+            error_msg = f"Failed to parse QIX API response: {str(e)}"
+            logger.error(error_msg)
+            raise Exception(error_msg) from None
     
     async def open_doc(self, app_id: str, api_key: str) -> Dict[str, Any]:
+        logger.info(f"Opening Qlik app document: {app_id}")
         ws = await self._get_connection(app_id, api_key)
         result = await self._send_qix_request(ws, "OpenDoc", [app_id], handle=1)
         if "error" in result:
-            raise Exception(f"QIX error: {result['error']}")
+            error_code = result["error"].get("code", "unknown")
+            error_message = result["error"].get("message", str(result["error"]))
+            raise Exception(f"Failed to open Qlik app document: {error_code} - {error_message}")
+        logger.info(f"Successfully opened Qlik app document: {app_id}")
         return result.get("result", {})
     
     async def get_sheets(self, app_id: str, api_key: str) -> List[Dict[str, Any]]:

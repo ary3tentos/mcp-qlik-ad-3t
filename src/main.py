@@ -6,10 +6,10 @@ import os
 import logging
 from dotenv import load_dotenv
 
-from src.mcp.handler import MCPHandler
+_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(_project_root, ".env"))
 
-# Carregar .env explicitamente
-load_dotenv()
+from src.mcp.handler import MCPHandler
 
 # Verificar se variáveis críticas estão configuradas (apenas para log)
 if not os.getenv("QLIK_CLOUD_API_KEY"):
@@ -45,6 +45,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/mcp")
+async def mcp_get():
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=405,
+        content={
+            "error": "Method Not Allowed",
+            "message": "Use POST with JSON-RPC body. Example: {\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\"}",
+            "path": "/mcp",
+            "allowed_methods": ["POST"]
+        }
+    )
 
 @app.post("/mcp")
 async def mcp_endpoint(request: Request):
@@ -174,12 +187,23 @@ async def mcp_endpoint(request: Request):
 # MCP Server usa API key de usuário mestre (read-only)
 # Não há endpoints de tokens - API key vem do header ou .env
 
+@app.get("/")
+async def root():
+    return {
+        "service": "Qlik Cloud MCP Server",
+        "routes": {
+            "GET /health": "Health check",
+            "POST /mcp": "JSON-RPC (initialize, tools/list, tools/call)"
+        },
+        "docs": "/docs"
+    }
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
 
 if __name__ == "__main__":
-    port = int(os.getenv("MCP_SERVER_PORT", 8080))
+    port = int(os.getenv("MCP_SERVER_PORT", "8082"))
     host = os.getenv("MCP_SERVER_HOST", "0.0.0.0")
     logger.info(f"Starting Qlik Cloud MCP Server on {host}:{port}")
     uvicorn.run(app, host=host, port=port, log_level="info")
