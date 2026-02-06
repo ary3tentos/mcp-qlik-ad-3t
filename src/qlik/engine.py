@@ -127,7 +127,7 @@ class QlikEngineClient:
         logger.info(f"Opening Qlik app document: {app_id}")
         ws = await self._get_connection(app_id, api_key)
         result = await self._send_qix_request(
-            ws, "OpenDoc", {"qDocName": app_id}, handle=1
+            ws, "OpenDoc", [app_id, "", "", "", False], handle=1
         )
         if "error" in result:
             error_code = result["error"].get("code", "unknown")
