@@ -83,10 +83,9 @@ class QlikEngineClient:
             logger.error(error_msg)
             raise Exception(error_msg) from None
     
-    async def _send_qix_request(self, ws: websockets.WebSocketClientProtocol, method: str, params: List[Any] = None, handle: int = None) -> Dict[str, Any]:
+    async def _send_qix_request(self, ws: websockets.WebSocketClientProtocol, method: str, params: Any = None, handle: int = None) -> Dict[str, Any]:
         if params is None:
             params = []
-        
         request = {
             "jsonrpc": "2.0",
             "id": handle or 1,
@@ -127,7 +126,9 @@ class QlikEngineClient:
     async def open_doc(self, app_id: str, api_key: str) -> Dict[str, Any]:
         logger.info(f"Opening Qlik app document: {app_id}")
         ws = await self._get_connection(app_id, api_key)
-        result = await self._send_qix_request(ws, "OpenDoc", [app_id], handle=1)
+        result = await self._send_qix_request(
+            ws, "OpenDoc", {"qDocName": app_id}, handle=1
+        )
         if "error" in result:
             error_code = result["error"].get("code", "unknown")
             error_message = result["error"].get("message", str(result["error"]))

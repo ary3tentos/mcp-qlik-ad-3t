@@ -87,3 +87,25 @@ class QlikRestClient:
             if "Qlik" in str(e) or "API" in str(e):
                 raise
             raise Exception(f"Error calling Qlik API: {str(e)}") from None
+
+    async def get_item(self, item_id: str, api_key: str) -> Dict[str, Any]:
+        """Get a single item by id (returns resourceId for Engine)."""
+        import logging
+        logger = logging.getLogger(__name__)
+        api_key = (api_key or "").strip()
+        if not api_key:
+            raise Exception("Qlik Cloud API key is required")
+        if not self.tenant_url:
+            raise Exception("QLIK_CLOUD_TENANT_URL is not configured.")
+        url = f"{self.tenant_url}/api/v1/items/{item_id}"
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                url,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                },
+                timeout=30.0
+            )
+            response.raise_for_status()
+            return response.json()
