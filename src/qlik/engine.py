@@ -9,7 +9,8 @@ logger = logging.getLogger(__name__)
 
 QEP104_MESSAGE = (
     "Qlik token expired or insufficient permissions (QEP-104). "
-    "Please reconnect to Qlik in the Chat-AI (Conectar Qlik) and try again."
+    "Please reconnect to Qlik in the Chat-AI (Conectar Qlik) and try again. "
+    "If the error persists: for qlik_get_app_sheets, qlik_get_sheet_charts, and qlik_get_chart_data use the app's resourceId (from qlik_get_apps) as appId, NOT the item id."
 )
 
 

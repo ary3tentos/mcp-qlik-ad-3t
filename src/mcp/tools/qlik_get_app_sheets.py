@@ -52,9 +52,12 @@ class QlikGetAppSheetsTool(BaseTool):
             }
         except Exception as e:
             error_msg = str(e)
-            if "QEP-104" in error_msg or "authentication" in error_msg.lower() or "permission" in error_msg.lower():
+            if "QEP-104" in error_msg or "4204" in error_msg or "authentication" in error_msg.lower() or "permission" in error_msg.lower():
                 logger.error(f"Engine API authentication/permission error for app {app_id}: {error_msg}")
-                raise Exception(f"Failed to access Qlik Engine API for app '{app_id}': {error_msg}. This may indicate that the API key does not have permission to access the Engine API, or the app requires different authentication. Verify API key permissions in Qlik Cloud settings.") from None
+                raise Exception(
+                    f"Qlik token expired or insufficient permissions (QEP-104) for app '{app_id}'. "
+                    "Use the app's resourceId from qlik_get_apps as appId (NOT the item id). If token is valid, reconnect in Chat-AI (Conectar Qlik) and try again."
+                ) from None
             else:
                 logger.error(f"Error fetching sheets for app {app_id}: {error_msg}")
                 raise Exception(f"Error fetching sheets for app '{app_id}': {error_msg}") from None
