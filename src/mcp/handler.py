@@ -2,6 +2,7 @@ import json
 import os
 from typing import Dict, Any, Optional
 from src.qlik.auth import QlikAuth
+from src.qlik.engine import QlikEngineAuthError, QEP104_MESSAGE
 from src.mcp.tools import (
     QlikGetAppsTool,
     QlikGetAppSheetsTool,
@@ -169,13 +170,11 @@ class MCPHandler:
                     }
                 
                 try:
-                    # Log da origem da API key para debug
                     api_key_source = "header" if api_key else "environment"
                     api_key_preview = f"{qlik_api_key[:8]}...{qlik_api_key[-4:]}" if qlik_api_key and len(qlik_api_key) > 12 else "not set"
                     logger.info(f"Executing tool: {tool_name} (API key from: {api_key_source}, preview: {api_key_preview})")
                     tool_instance = self.tools[tool_name]
                     result = await tool_instance.execute(arguments, qlik_api_key)
-                    
                     return {
                         "jsonrpc": "2.0",
                         "id": request_id,
@@ -188,9 +187,27 @@ class MCPHandler:
                             ]
                         }
                     }
+                except QlikEngineAuthError:
+                    logger.warning("Qlik QEP-104 (token expired or insufficient permissions). User should reconnect in Chat-AI.")
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "result": {
+                            "content": [{"type": "text", "text": QEP104_MESSAGE}]
+                        }
+                    }
                 except Exception as e:
                     error_msg = str(e)
-                    
+                    is_qep104 = "QEP-104" in error_msg or "4204" in error_msg
+                    if is_qep104:
+                        logger.warning("Qlik QEP-104 (token expired or insufficient permissions). User should reconnect in Chat-AI.")
+                        return {
+                            "jsonrpc": "2.0",
+                            "id": request_id,
+                            "result": {
+                                "content": [{"type": "text", "text": QEP104_MESSAGE}]
+                            }
+                        }
                     is_auth_error = (
                         "API key" in error_msg or "QLIK_CLOUD_API_KEY" in error_msg
                         or "reconnect" in error_msg.lower() or "Conectar Qlik" in error_msg
@@ -212,7 +229,6 @@ class MCPHandler:
                         error_code = -32603
                         error_message = f"Error executing tool '{tool_name}': {error_msg}"
                         logger.error(f"Error executing tool {tool_name}: {error_message}", exc_info=True)
-                    
                     return {
                         "jsonrpc": "2.0",
                         "id": request_id,

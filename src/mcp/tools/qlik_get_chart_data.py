@@ -9,7 +9,7 @@ class QlikGetChartDataTool(BaseTool):
     def get_schema(self) -> Dict[str, Any]:
         return {
             "name": "qlik_get_chart_data",
-            "description": "Extract actual data values from a specific chart/visualization in a Qlik app. Returns the data rows, dimensions, and measures displayed in the chart. Use this to get the numbers, text, and values that the visualization is showing. Set includeMeta=true to get information about dimensions and measures. READ-ONLY operation - only retrieves data, cannot create, modify or delete data.",
+            "description": "Extract actual data from a chart/table in a Qlik app (e.g. valores, fornecedores, produtos, totais). Returns rows with dimensions and measures. Flow: use qlik_get_app_sheets(appId) to get sheet IDs, then qlik_get_sheet_charts(appId, sheetId) to get object IDs, then this tool with (appId, objectId) to get the data. Set includeMeta=true for dimension/measure names. READ-ONLY.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

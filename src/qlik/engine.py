@@ -7,6 +7,17 @@ from typing import Optional, Dict, Any, List
 
 logger = logging.getLogger(__name__)
 
+QEP104_MESSAGE = (
+    "Qlik token expired or insufficient permissions (QEP-104). "
+    "Please reconnect to Qlik in the Chat-AI (Conectar Qlik) and try again."
+)
+
+
+class QlikEngineAuthError(Exception):
+    """Raised when Qlik Engine closes with QEP-104 (token expired or insufficient permissions)."""
+    def __init__(self):
+        super().__init__(QEP104_MESSAGE)
+
 class QlikEngineClient:
     """
     Qlik Engine API Client (WebSocket) - READ-ONLY operations only.
@@ -63,10 +74,7 @@ class QlikEngineClient:
                     "Ensure the API key has access to the app and to the Engine API. In Postman, set app_id to the value only (e.g. 636d37c753782e98b7ea0a66), without {{ }}."
                 ) from None
             if "QEP-104" in err_str or "4204" in err_str or ("QEP" in err_str and "104" in err_str):
-                raise Exception(
-                    "Qlik token expired or insufficient permissions (QEP-104). "
-                    "Please reconnect to Qlik in the Chat-AI (Conectar Qlik) and try again."
-                ) from None
+                raise QlikEngineAuthError() from None
             logger.error("Qlik Engine WebSocket closed: %s", err_str)
             raise Exception(f"Qlik Engine WebSocket connection closed: {err_str}") from None
         except Exception as e:
@@ -95,10 +103,7 @@ class QlikEngineClient:
                 error_message = result["error"].get("message", str(result["error"]))
                 logger.error("QIX API error: code=%s, message=%s", error_code, error_message)
                 if error_code == "QEP-104" or "QEP-104" in error_code or "QEP-104" in str(result["error"]):
-                    raise Exception(
-                        "Qlik token expired or insufficient permissions (QEP-104). "
-                        "Please reconnect to Qlik in the Chat-AI (Conectar Qlik) and try again."
-                    )
+                    raise QlikEngineAuthError() from None
                 raise Exception(f"QIX error: {error_code} - {error_message}")
             
             return result
@@ -110,10 +115,7 @@ class QlikEngineClient:
                     "Ensure app_id is the raw id (e.g. 636d37c753782e98b7ea0a66) with no {{ }}. Check API key has Engine and app access."
                 ) from None
             if "QEP-104" in err_str or "4204" in err_str or ("QEP" in err_str and "104" in err_str):
-                raise Exception(
-                    "Qlik token expired or insufficient permissions (QEP-104). "
-                    "Please reconnect to Qlik in the Chat-AI (Conectar Qlik) and try again."
-                ) from None
+                raise QlikEngineAuthError() from None
             logger.error("WebSocket closed during QIX request: %s", err_str)
             raise Exception(f"WebSocket connection closed during QIX request: {err_str}") from None
         except json.JSONDecodeError as e:

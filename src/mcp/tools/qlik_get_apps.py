@@ -9,13 +9,13 @@ class QlikGetAppsTool(BaseTool):
     def get_schema(self) -> Dict[str, Any]:
         return {
             "name": "qlik_get_apps",
-            "description": "List available Qlik Cloud apps with their names and IDs. Returns app catalog information. Use the app ID returned here with qlik_get_app_sheets to explore sheets inside the app. READ-ONLY operation - only retrieves data, cannot create, modify or delete apps.",
+            "description": "List Qlik Cloud apps the user has access to (names and IDs). Returns up to 100 apps by default; use 'cursor' from response for more. Use the app 'id' with qlik_get_app_sheets to get data from inside the app (sheets, then charts, then values). READ-ONLY.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "limit": {
                         "type": "integer",
-                        "description": "Maximum number of apps to return",
+                        "description": "Maximum number of apps to return (default: 100)",
                         "minimum": 1,
                         "maximum": 100
                     },
@@ -39,11 +39,11 @@ class QlikGetAppsTool(BaseTool):
             if not api_key:
                 raise ValueError("Qlik Cloud API key is required. Please provide it in the request header (X-API-KEY) or configure QLIK_CLOUD_API_KEY in environment variables.")
             
-            limit = arguments.get("limit")
+            limit = arguments.get("limit", 100)
             cursor = arguments.get("cursor")
             name = arguments.get("name")
-            
-            if limit and (limit < 1 or limit > 100):
+
+            if limit < 1 or limit > 100:
                 raise ValueError("limit must be between 1 and 100")
             
             logger.info(f"Fetching Qlik apps (limit={limit}, name_filter={name})")
