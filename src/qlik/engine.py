@@ -64,8 +64,8 @@ class QlikEngineClient:
                 ) from None
             if "QEP-104" in err_str or "4204" in err_str or ("QEP" in err_str and "104" in err_str):
                 raise Exception(
-                    "Engine QEP-104: a API key não tem permissão para o Engine API. "
-                    "No Qlik Cloud verifique se a API key tem acesso ao Engine e ao app."
+                    "Qlik token expired or insufficient permissions (QEP-104). "
+                    "Please reconnect to Qlik in the Chat-AI (Conectar Qlik) and try again."
                 ) from None
             logger.error("Qlik Engine WebSocket closed: %s", err_str)
             raise Exception(f"Qlik Engine WebSocket connection closed: {err_str}") from None
@@ -96,8 +96,8 @@ class QlikEngineClient:
                 logger.error("QIX API error: code=%s, message=%s", error_code, error_message)
                 if error_code == "QEP-104" or "QEP-104" in error_code or "QEP-104" in str(result["error"]):
                     raise Exception(
-                        "Engine QEP-104: a API key não tem permissão para o Engine API ou para este app. "
-                        "No Qlik Cloud: verifique se a API key tem acesso ao Engine e ao app; use uma API key de usuário que possa abrir o app."
+                        "Qlik token expired or insufficient permissions (QEP-104). "
+                        "Please reconnect to Qlik in the Chat-AI (Conectar Qlik) and try again."
                     )
                 raise Exception(f"QIX error: {error_code} - {error_message}")
             
@@ -111,8 +111,8 @@ class QlikEngineClient:
                 ) from None
             if "QEP-104" in err_str or "4204" in err_str or ("QEP" in err_str and "104" in err_str):
                 raise Exception(
-                    "Engine QEP-104: a API key não tem permissão para o Engine API ou para este app. "
-                    "No Qlik Cloud: verifique se a API key tem acesso ao Engine e ao app; use uma API key de usuário que possa abrir o app."
+                    "Qlik token expired or insufficient permissions (QEP-104). "
+                    "Please reconnect to Qlik in the Chat-AI (Conectar Qlik) and try again."
                 ) from None
             logger.error("WebSocket closed during QIX request: %s", err_str)
             raise Exception(f"WebSocket connection closed during QIX request: {err_str}") from None

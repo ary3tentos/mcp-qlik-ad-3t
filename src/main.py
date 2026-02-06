@@ -101,67 +101,89 @@ async def mcp_endpoint(request: Request):
             }
         }
     
-    # Extrair API key do header (X-API-KEY ou Authorization Bearer)
-    api_key = request.headers.get("X-API-KEY")
-    api_key_source = "X-API-KEY header"
-    
-    if not api_key:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            api_key = auth_header.replace("Bearer ", "").strip()
-            api_key_source = "Authorization Bearer header"
-    
-    # Limpar espaços extras da API key do header e tratar strings vazias como None
+    # Token Qlik: ler de qualquer um dos três headers (Starlette Headers são case-insensitive)
+    auth_val = (request.headers.get("authorization") or "").strip()
+    x_qlik_val = (request.headers.get("x-qlik-access-token") or "").strip()
+    x_api_val = (request.headers.get("x-api-key") or "").strip()
+    if method == "tools/call":
+        logger.info(
+            "Headers check: Authorization present=%s, X-Qlik-Access-Token present=%s, X-API-KEY present=%s",
+            bool(auth_val), bool(x_qlik_val), bool(x_api_val),
+        )
+        if not (auth_val or x_qlik_val or x_api_val):
+            raw_headers = request.scope.get("headers") or []
+            raw_names = [h[0].decode("latin-1") for h in raw_headers]
+            logger.info("ASGI scope headers (names): %s", raw_names)
+    qlik_token = None
+    token_source = None
+    if auth_val.lower().startswith("bearer "):
+        qlik_token = auth_val[7:].strip()
+        token_source = "Authorization Bearer"
+    if not qlik_token and x_qlik_val:
+        qlik_token = x_qlik_val
+        token_source = "X-Qlik-Access-Token"
+    if not qlik_token and x_api_val:
+        qlik_token = x_api_val
+        token_source = "X-API-KEY"
+    api_key = qlik_token if (qlik_token and qlik_token.strip()) else None
+    header_names = list(request.headers.keys())
+
     if api_key:
         api_key = api_key.strip()
-        if not api_key:
-            api_key = None
-        else:
-            api_key_preview = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
-            logger.info(f"API key from {api_key_source}: {api_key_preview} (length: {len(api_key)} chars)")
+        api_key_preview = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
+        logger.info(f"Qlik token from {token_source}: {api_key_preview} (length: {len(api_key)} chars)")
     
     # Métodos de descoberta não precisam de API key
     discovery_methods = ["initialize", "tools/list"]
     requires_auth = method not in discovery_methods
     
-    # Se não veio do header, tentar usar do .env (fallback)
-    # IMPORTANTE: Sempre tentar usar .env como fallback para métodos que requerem auth
     if not api_key and requires_auth:
-        logger.info(f"No API key in header for method {method}, trying .env fallback...")
+        logger.info(
+            f"No Qlik token in request for method {method}. Incoming headers (names): %s. Trying .env fallback.",
+            header_names,
+        )
         from src.qlik.auth import QlikAuth
         qlik_auth = QlikAuth()
         env_api_key = qlik_auth.get_api_key()
         if env_api_key:
             api_key = env_api_key
-            api_key_source = "environment (.env)"
+            token_source = "environment (.env)"
             api_key_preview = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
-            logger.info(f"✓ Using API key from {api_key_source}: {api_key_preview} (length: {len(api_key)} chars)")
+            logger.info(f"✓ Using Qlik token from {token_source}: {api_key_preview} (length: {len(api_key)} chars)")
         else:
-            logger.warning(f"✗ No API key found in .env file. QLIK_CLOUD_API_KEY is not configured or is empty.")
-            # Verificar se a variável existe mas está vazia
+            logger.warning(
+                "✗ No Qlik token in headers and QLIK_CLOUD_API_KEY not set. "
+                "Expected one of: Authorization (Bearer), X-Qlik-Access-Token, X-API-KEY. "
+                "Received header names: %s",
+                header_names,
+            )
             env_raw = os.getenv("QLIK_CLOUD_API_KEY")
             if env_raw is not None:
-                logger.warning(f"  QLIK_CLOUD_API_KEY exists in environment but is empty or whitespace only")
+                logger.warning("  QLIK_CLOUD_API_KEY exists in environment but is empty or whitespace only")
             else:
-                logger.warning(f"  QLIK_CLOUD_API_KEY variable not found in environment")
-    
+                logger.warning("  QLIK_CLOUD_API_KEY variable not found in environment")
+
     if requires_auth and not api_key:
-        # Verificar se há API key no .env para dar mensagem mais específica
         from src.qlik.auth import QlikAuth
         qlik_auth_check = QlikAuth()
         env_key_exists = qlik_auth_check.get_api_key() is not None
-        
         if env_key_exists:
-            logger.warning(f"Missing API key for method: {method}. API key exists in .env but was not used. This may indicate a bug in the fallback logic.")
+            logger.warning(
+                "Missing Qlik token for method %s. Token exists in .env but was not used (no token in request). Request header names: %s",
+                method, header_names,
+            )
         else:
-            logger.warning(f"Missing API key for method: {method}. No API key in header and QLIK_CLOUD_API_KEY not configured in .env file.")
+            logger.warning(
+                "Missing Qlik token for method %s. No token in request and QLIK_CLOUD_API_KEY not in .env. Request header names: %s",
+                method, header_names,
+            )
         
         return {
             "jsonrpc": "2.0",
             "id": request_id,
             "error": {
                 "code": -32000,
-                "message": "Missing API key. Provide X-API-KEY header or Authorization Bearer token. Alternatively, configure QLIK_CLOUD_API_KEY in server .env file."
+                "message": "Missing Qlik token. Send the user's Qlik OAuth access_token in one of: Authorization: Bearer <token>, X-Qlik-Access-Token, or X-API-KEY. If using OAuth, ask the user to reconnect in Chat-AI (Conectar Qlik). Optionally set QLIK_CLOUD_API_KEY in server .env for fallback."
             }
         }
     

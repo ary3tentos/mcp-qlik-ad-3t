@@ -157,15 +157,14 @@ class MCPHandler:
                         }
                     }
                 
-                # Verificar se API key está disponível
                 if tool_name.startswith("qlik_") and not qlik_api_key:
-                    logger.warning(f"Missing API key for tool: {tool_name}")
+                    logger.warning(f"Missing Qlik token for tool: {tool_name}")
                     return {
                         "jsonrpc": "2.0",
                         "id": request_id,
                         "error": {
                             "code": -32000,
-                            "message": "Missing Qlik Cloud API key. Please configure QLIK_CLOUD_API_KEY or provide it in the request header."
+                            "message": "Missing Qlik token. Send the user's Qlik OAuth access_token in Authorization (Bearer), X-API-KEY, or X-Qlik-Access-Token. If using OAuth, ask the user to reconnect in Chat-AI (Conectar Qlik)."
                         }
                     }
                 
@@ -192,11 +191,14 @@ class MCPHandler:
                 except Exception as e:
                     error_msg = str(e)
                     
-                    # Determinar código de erro e mensagem baseado no tipo
-                    if "API key" in error_msg or "QLIK_CLOUD_API_KEY" in error_msg:
+                    is_auth_error = (
+                        "API key" in error_msg or "QLIK_CLOUD_API_KEY" in error_msg
+                        or "reconnect" in error_msg.lower() or "Conectar Qlik" in error_msg
+                        or "token expired" in error_msg.lower() or "401" in error_msg
+                    )
+                    if is_auth_error:
                         error_code = -32000
                         error_message = error_msg
-                        # Não logar stack trace completo para erros de autenticação conhecidos
                         logger.error(f"Error executing tool {tool_name}: {error_message}")
                     elif "Timeout" in error_msg or "timeout" in error_msg:
                         error_code = -32603

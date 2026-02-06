@@ -71,8 +71,9 @@ class QlikRestClient:
                 error_detail = e.response.text
             
             if e.response.status_code == 401:
-                # Usar 'from None' para evitar stack trace duplicado
-                raise Exception("Invalid or expired Qlik API key. Please check QLIK_CLOUD_API_KEY configuration.") from None
+                raise Exception(
+                    "Qlik token expired or invalid. Please reconnect to Qlik in the Chat-AI (Conectar Qlik) and try again."
+                ) from None
             elif e.response.status_code == 404:
                 raise Exception(f"Qlik API endpoint not found. Check if QLIK_CLOUD_TENANT_URL is correct: {self.tenant_url}") from None
             else:
