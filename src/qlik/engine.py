@@ -32,10 +32,13 @@ class QlikEngineClient:
     
     No create, update, delete, or modify operations are implemented.
     """
+    GLOBAL_HANDLE = -1
+
     def __init__(self):
         self.tenant_url = os.getenv("QLIK_CLOUD_TENANT_URL", "").rstrip("/")
         self.ws_url = self.tenant_url.replace("https://", "wss://").replace("http://", "ws://")
         self.connections: Dict[str, websockets.WebSocketClientProtocol] = {}
+        self.doc_handles: Dict[str, int] = {}
     
     def _get_ws_url(self, app_id: str) -> str:
         return f"{self.ws_url}/app/{app_id}"
@@ -83,12 +86,13 @@ class QlikEngineClient:
             logger.error(error_msg)
             raise Exception(error_msg) from None
     
-    async def _send_qix_request(self, ws: websockets.WebSocketClientProtocol, method: str, params: Any = None, handle: int = None) -> Dict[str, Any]:
+    async def _send_qix_request(self, ws: websockets.WebSocketClientProtocol, method: str, params: Any = None, request_id: int = 1, qix_handle: int = -1) -> Dict[str, Any]:
         if params is None:
             params = []
         request = {
             "jsonrpc": "2.0",
-            "id": handle or 1,
+            "id": request_id,
+            "handle": qix_handle,
             "method": method,
             "params": params
         }
@@ -123,79 +127,80 @@ class QlikEngineClient:
             logger.error(error_msg)
             raise Exception(error_msg) from None
     
-    async def open_doc(self, app_id: str, api_key: str) -> Dict[str, Any]:
+    def _doc_handle_from_open_result(self, result: Dict[str, Any]) -> int:
+        res = result.get("result") or {}
+        qret = res.get("qReturn") or res
+        h = qret.get("qHandle")
+        if h is not None:
+            return int(h)
+        raise Exception("OpenDoc response missing qHandle in result")
+
+    async def open_doc(self, app_id: str, api_key: str) -> int:
+        if app_id in self.doc_handles:
+            return self.doc_handles[app_id]
         logger.info(f"Opening Qlik app document: {app_id}")
         ws = await self._get_connection(app_id, api_key)
         result = await self._send_qix_request(
-            ws, "OpenDoc", [app_id, "", "", "", False], handle=1
+            ws, "OpenDoc", [app_id, "", "", "", False], request_id=1, qix_handle=self.GLOBAL_HANDLE
         )
         if "error" in result:
             error_code = result["error"].get("code", "unknown")
             error_message = result["error"].get("message", str(result["error"]))
             raise Exception(f"Failed to open Qlik app document: {error_code} - {error_message}")
-        logger.info(f"Successfully opened Qlik app document: {app_id}")
-        return result.get("result", {})
+        doc_handle = self._doc_handle_from_open_result(result)
+        self.doc_handles[app_id] = doc_handle
+        logger.info(f"Successfully opened Qlik app document: {app_id} (handle=%s)", doc_handle)
+        return doc_handle
     
     async def get_sheets(self, app_id: str, api_key: str) -> List[Dict[str, Any]]:
         ws = await self._get_connection(app_id, api_key)
-        await self.open_doc(app_id, api_key)
-        
-        result = await self._send_qix_request(ws, "GetSheets", [], handle=2)
+        doc_handle = await self.open_doc(app_id, api_key)
+        result = await self._send_qix_request(ws, "GetSheets", [], request_id=2, qix_handle=doc_handle)
         if "error" in result:
             raise Exception(f"QIX error: {result['error']}")
-        
         return result.get("result", {}).get("qItems", [])
-    
+
     async def get_sheet_objects(self, app_id: str, sheet_id: str, api_key: str) -> List[Dict[str, Any]]:
         ws = await self._get_connection(app_id, api_key)
-        await self.open_doc(app_id, api_key)
-        
-        result = await self._send_qix_request(ws, "GetSheetObjects", [sheet_id], handle=3)
+        doc_handle = await self.open_doc(app_id, api_key)
+        result = await self._send_qix_request(ws, "GetSheetObjects", [sheet_id], request_id=3, qix_handle=doc_handle)
         if "error" in result:
             raise Exception(f"QIX error: {result['error']}")
-        
         return result.get("result", {}).get("qItems", [])
-    
+
     async def get_object(self, app_id: str, object_id: str, api_key: str) -> Dict[str, Any]:
         ws = await self._get_connection(app_id, api_key)
-        await self.open_doc(app_id, api_key)
-        
-        result = await self._send_qix_request(ws, "GetObject", [object_id], handle=4)
+        doc_handle = await self.open_doc(app_id, api_key)
+        result = await self._send_qix_request(ws, "GetObject", [object_id], request_id=4, qix_handle=doc_handle)
         if "error" in result:
             raise Exception(f"QIX error: {result['error']}")
-        
         return result.get("result", {})
     
     async def get_hypercube_data(self, app_id: str, object_id: str, api_key: str, 
                                   page_size: int = 100, max_rows: Optional[int] = None,
                                   include_meta: bool = False) -> Dict[str, Any]:
         ws = await self._get_connection(app_id, api_key)
-        await self.open_doc(app_id, api_key)
-        
+        doc_handle = await self.open_doc(app_id, api_key)
         obj_result = await self.get_object(app_id, object_id, api_key)
         layout = obj_result.get("layout", {})
         hypercube = layout.get("qHyperCube", {})
-        
-        if not hypercube:
-            raise Exception("Object does not have a hypercube")
-        
+        obj_handle = (obj_result.get("qReturn") or {}).get("qHandle")
+        if obj_handle is None:
+            obj_handle = doc_handle
         q_size = hypercube.get("qSize", {})
         total_rows = q_size.get("qcy", 0)
-        
         if max_rows:
             total_rows = min(total_rows, max_rows)
-        
         all_data = []
         current_row = 0
-        
         while current_row < total_rows:
             page_size_actual = min(page_size, total_rows - current_row)
-            
             result = await self._send_qix_request(
                 ws,
                 "GetHyperCubeData",
-                [object_id, [{"qTop": current_row, "qLeft": 0, "qWidth": hypercube.get("qSize", {}).get("qcx", 1), "qHeight": page_size_actual}]],
-                handle=5
+                ["/qHyperCubeDef", [{"qTop": current_row, "qLeft": 0, "qWidth": hypercube.get("qSize", {}).get("qcx", 1), "qHeight": page_size_actual}]],
+                request_id=5,
+                qix_handle=obj_handle
             )
             
             if "error" in result:
