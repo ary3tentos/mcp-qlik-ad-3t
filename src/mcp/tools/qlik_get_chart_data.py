@@ -15,7 +15,7 @@ class QlikGetChartDataTool(BaseTool):
                 "properties": {
                     "appId": {
                         "type": "string",
-                        "description": "The ID of the Qlik app"
+                        "description": "The app resourceId from qlik_get_apps (NOT the item id)"
                     },
                     "objectId": {
                         "type": "string",

@@ -15,7 +15,7 @@ class QlikGetAppSheetsTool(BaseTool):
                 "properties": {
                     "appId": {
                         "type": "string",
-                        "description": "The ID of the Qlik app"
+                        "description": "The app resourceId from qlik_get_apps (NOT the item id; use resourceId to avoid QEP-104)"
                     }
                 },
                 "required": ["appId"]

@@ -9,7 +9,7 @@ class QlikGetAppsTool(BaseTool):
     def get_schema(self) -> Dict[str, Any]:
         return {
             "name": "qlik_get_apps",
-            "description": "List Qlik Cloud apps the user has access to (names and IDs). Returns up to 100 apps by default; use 'cursor' from response for more. Use the app 'id' with qlik_get_app_sheets to get data from inside the app (sheets, then charts, then values). READ-ONLY.",
+            "description": "List Qlik Cloud apps the user has access to. Each app has 'id' (item id) and 'resourceId' (app id for Engine). For qlik_get_app_sheets, qlik_get_sheet_charts, qlik_get_chart_data you MUST use resourceId as appId (item id causes QEP-104). Returns up to 100 apps by default. READ-ONLY.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -73,13 +73,13 @@ class QlikGetAppsTool(BaseTool):
                     logger.warning(f"Skipping app without ID: {app}")
                     continue
                 
+                resource_id = app.get("resourceId") or app_id
                 processed_app = {
                     "id": app_id,
+                    "resourceId": resource_id,
                     "name": app_name or "Unnamed App",
                     "resourceType": app.get("resourceType", "app"),
                 }
-                
-                # Adicionar campos opcionais se existirem
                 if app.get("description"):
                     processed_app["description"] = app.get("description")
                 if app.get("createdAt"):
