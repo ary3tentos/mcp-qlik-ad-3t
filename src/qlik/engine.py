@@ -25,7 +25,7 @@ class QlikEngineClient:
     
     This client only performs read operations via QIX protocol:
     - OpenDoc: Open app for reading
-    - GetSheets: List sheets
+    - GetSheetList: List sheets
     - GetSheetObjects: List objects in a sheet
     - GetObject: Get object metadata
     - GetHyperCubeData: Get data from visualizations
@@ -99,18 +99,20 @@ class QlikEngineClient:
         
         try:
             await ws.send(json.dumps(request))
-            response = await ws.recv()
-            result = json.loads(response)
-            
-            if "error" in result:
-                error_code = str(result["error"].get("code", "unknown"))
-                error_message = result["error"].get("message", str(result["error"]))
-                logger.error("QIX API error: code=%s, message=%s", error_code, error_message)
-                if error_code == "QEP-104" or "QEP-104" in error_code or "QEP-104" in str(result["error"]):
-                    raise QlikEngineAuthError() from None
-                raise Exception(f"QIX error: {error_code} - {error_message}")
-            
-            return result
+            for _ in range(10):
+                response = await ws.recv()
+                result = json.loads(response)
+                if "error" in result:
+                    error_code = str(result["error"].get("code", "unknown"))
+                    error_message = result["error"].get("message", str(result["error"]))
+                    logger.error("QIX API error: code=%s, message=%s", error_code, error_message)
+                    if error_code == "QEP-104" or "QEP-104" in error_code or "QEP-104" in str(result["error"]):
+                        raise QlikEngineAuthError() from None
+                    raise Exception(f"QIX error: {error_code} - {error_message}")
+                mid = result.get("id")
+                if mid == request_id or ("result" in result and mid is None):
+                    return result
+            raise Exception("QIX: no response matching request id %s" % request_id)
         except websockets.exceptions.ConnectionClosedError as e:
             err_str = str(e)
             if "QEP-101" in err_str or ("QEP" in err_str and "101" in err_str):
@@ -130,15 +132,17 @@ class QlikEngineClient:
     def _doc_handle_from_open_result(self, result: Dict[str, Any]) -> int:
         res = result.get("result")
         if res is None:
-            raise Exception("OpenDoc response missing result")
+            logger.warning("OpenDoc response has no result, using doc handle 1; keys=%s", list(result.keys()))
+            return 1
         if isinstance(res, int):
             return res
         if not isinstance(res, dict):
-            raise Exception("OpenDoc response result is not object or handle")
+            logger.warning("OpenDoc result is not object/handle (%s), using doc handle 1", type(res).__name__)
+            return 1
         h = res.get("qHandle") or (res.get("qReturn") or {}).get("qHandle")
         if h is not None:
             return int(h)
-        logger.warning("OpenDoc result has no qHandle, using doc handle 1; keys=%s", list(res.keys()) if res else [])
+        logger.warning("OpenDoc result has no qHandle, using doc handle 1; keys=%s", list(res.keys()))
         return 1
 
     async def open_doc(self, app_id: str, api_key: str) -> int:
@@ -161,10 +165,11 @@ class QlikEngineClient:
     async def get_sheets(self, app_id: str, api_key: str) -> List[Dict[str, Any]]:
         ws = await self._get_connection(app_id, api_key)
         doc_handle = await self.open_doc(app_id, api_key)
-        result = await self._send_qix_request(ws, "GetSheets", [], request_id=2, qix_handle=doc_handle)
+        result = await self._send_qix_request(ws, "GetSheetList", [], request_id=2, qix_handle=doc_handle)
         if "error" in result:
             raise Exception(f"QIX error: {result['error']}")
-        return result.get("result", {}).get("qItems", [])
+        res = result.get("result") or {}
+        return res.get("qItems") or res.get("qSheetList") or []
 
     async def get_sheet_objects(self, app_id: str, sheet_id: str, api_key: str) -> List[Dict[str, Any]]:
         ws = await self._get_connection(app_id, api_key)
