@@ -128,12 +128,18 @@ class QlikEngineClient:
             raise Exception(error_msg) from None
     
     def _doc_handle_from_open_result(self, result: Dict[str, Any]) -> int:
-        res = result.get("result") or {}
-        qret = res.get("qReturn") or res
-        h = qret.get("qHandle")
+        res = result.get("result")
+        if res is None:
+            raise Exception("OpenDoc response missing result")
+        if isinstance(res, int):
+            return res
+        if not isinstance(res, dict):
+            raise Exception("OpenDoc response result is not object or handle")
+        h = res.get("qHandle") or (res.get("qReturn") or {}).get("qHandle")
         if h is not None:
             return int(h)
-        raise Exception("OpenDoc response missing qHandle in result")
+        logger.warning("OpenDoc result has no qHandle, using doc handle 1; keys=%s", list(res.keys()) if res else [])
+        return 1
 
     async def open_doc(self, app_id: str, api_key: str) -> int:
         if app_id in self.doc_handles:
