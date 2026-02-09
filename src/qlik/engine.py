@@ -199,10 +199,34 @@ class QlikEngineClient:
     async def get_sheet_objects(self, app_id: str, sheet_id: str, api_key: str) -> List[Dict[str, Any]]:
         ws = await self._get_connection(app_id, api_key)
         doc_handle = await self.open_doc(app_id, api_key)
-        result = await self._send_qix_request(ws, "GetSheetObjects", [sheet_id], request_id=3, qix_handle=doc_handle)
-        if "error" in result:
-            raise Exception(f"QIX error: {result['error']}")
-        return result.get("result", {}).get("qItems", [])
+        get_obj = await self._send_qix_request(ws, "GetObject", [sheet_id], request_id=3, qix_handle=doc_handle)
+        if "error" in get_obj:
+            raise Exception(f"QIX error: {get_obj['error']}")
+        res = get_obj.get("result") or {}
+        sheet_handle = (res.get("qReturn") or {}).get("qHandle")
+        if sheet_handle is None:
+            return []
+        props_result = await self._send_qix_request(ws, "GetProperties", [], request_id=4, qix_handle=sheet_handle)
+        if "error" in props_result:
+            raise Exception(f"QIX error: {props_result['error']}")
+        qprop = (props_result.get("result") or {}).get("qProp") or {}
+        cells = qprop.get("cells") or []
+        items = []
+        for cell in cells:
+            name = cell.get("name") if isinstance(cell, dict) else None
+            if name:
+                items.append({"qInfo": {"qId": name}})
+        if not items:
+            layout_result = await self._send_qix_request(ws, "GetLayout", [], request_id=5, qix_handle=sheet_handle)
+            if "error" not in layout_result:
+                qlayout = (layout_result.get("result") or {}).get("qLayout") or {}
+                child_list = (qlayout.get("qChildList") or {}).get("qItems") or []
+                for child in child_list:
+                    qinfo = (child.get("qInfo") or {}) if isinstance(child, dict) else {}
+                    cid = qinfo.get("qId")
+                    if cid:
+                        items.append({"qInfo": {"qId": cid}})
+        return items
 
     async def get_object(self, app_id: str, object_id: str, api_key: str) -> Dict[str, Any]:
         ws = await self._get_connection(app_id, api_key)
