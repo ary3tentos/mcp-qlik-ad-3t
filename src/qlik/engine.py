@@ -3,6 +3,7 @@ import json
 import websockets
 import os
 import logging
+from urllib.parse import urlencode
 from typing import Optional, Dict, Any, List
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ class QlikEngineClient:
     
     This client only performs read operations via QIX protocol:
     - OpenDoc: Open app for reading
-    - GetSheetList: List sheets
+    - CreateSessionObject + GetLayout: List sheets (qAppObjectListDef qType sheet)
     - GetSheetObjects: List objects in a sheet
     - GetObject: Get object metadata
     - GetHyperCubeData: Get data from visualizations
@@ -40,9 +41,13 @@ class QlikEngineClient:
         self.connections: Dict[str, websockets.WebSocketClientProtocol] = {}
         self.doc_handles: Dict[str, int] = {}
     
-    def _get_ws_url(self, app_id: str) -> str:
-        return f"{self.ws_url}/app/{app_id}"
-    
+    def _get_ws_url(self, app_id: str, api_key: Optional[str] = None) -> str:
+        path = f"{self.ws_url}/app/{app_id}/"
+        if api_key:
+            qs = urlencode({"qlikAuth": f"Bearer {api_key}"})
+            return f"{path}?{qs}"
+        return path
+
     async def _get_connection(self, app_id: str, api_key: str) -> websockets.WebSocketClientProtocol:
         """Get or create WebSocket connection to Qlik Engine API"""
         cache_key = f"{app_id}"
@@ -50,21 +55,25 @@ class QlikEngineClient:
             ws = self.connections[cache_key]
             if not ws.closed:
                 return ws
-        
+            del self.connections[cache_key]
+        if cache_key in self.doc_handles:
+            del self.doc_handles[cache_key]
+
         if not api_key:
             raise Exception("Qlik Cloud API key is required")
-        
-        ws_url = self._get_ws_url(app_id)
+
+        ws_url = self._get_ws_url(app_id, api_key)
         origin = self.tenant_url if self.tenant_url.startswith("http") else f"https://{self.tenant_url}"
         if origin.startswith("wss://"):
             origin = "https://" + origin[6:]
         elif origin.startswith("ws://"):
             origin = "http://" + origin[5:]
+        origin = origin.rstrip("/")
         headers = {
             "Authorization": f"Bearer {api_key}",
-            "Origin": origin.rstrip("/"),
+            "Origin": origin,
         }
-        logger.info("Connecting to Qlik Engine API WebSocket: %s", ws_url)
+        logger.info("Connecting to Qlik Engine API WebSocket: %s", self._get_ws_url(app_id))
         try:
             ws = await websockets.connect(ws_url, extra_headers=headers)
             self.connections[cache_key] = ws
@@ -121,6 +130,11 @@ class QlikEngineClient:
                     "Ensure app_id is the raw id (e.g. 636d37c753782e98b7ea0a66) with no {{ }}. Check API key has Engine and app access."
                 ) from None
             if "QEP-104" in err_str or "4204" in err_str or ("QEP" in err_str and "104" in err_str):
+                for k, v in list(self.connections.items()):
+                    if v is ws:
+                        del self.connections[k]
+                        self.doc_handles.pop(k, None)
+                        break
                 raise QlikEngineAuthError() from None
             logger.error("WebSocket closed during QIX request: %s", err_str)
             raise Exception(f"WebSocket connection closed during QIX request: {err_str}") from None
@@ -165,11 +179,22 @@ class QlikEngineClient:
     async def get_sheets(self, app_id: str, api_key: str) -> List[Dict[str, Any]]:
         ws = await self._get_connection(app_id, api_key)
         doc_handle = await self.open_doc(app_id, api_key)
-        result = await self._send_qix_request(ws, "GetSheetList", [], request_id=2, qix_handle=doc_handle)
+        create_params = [{
+            "qInfo": {"qId": "", "qType": "SessionLists"},
+            "qAppObjectListDef": {"qType": "sheet", "qData": {"id": "/qInfo/qId"}},
+        }]
+        result = await self._send_qix_request(ws, "CreateSessionObject", create_params, request_id=2, qix_handle=doc_handle)
         if "error" in result:
             raise Exception(f"QIX error: {result['error']}")
         res = result.get("result") or {}
-        return res.get("qItems") or res.get("qSheetList") or []
+        session_handle = (res.get("qReturn") or res).get("qHandle")
+        if session_handle is None:
+            return []
+        layout_result = await self._send_qix_request(ws, "GetLayout", [], request_id=3, qix_handle=session_handle)
+        if "error" in layout_result:
+            raise Exception(f"QIX error: {layout_result['error']}")
+        qlayout = (layout_result.get("result") or {}).get("qLayout") or {}
+        return qlayout.get("qAppObjectList", {}).get("qItems") or []
 
     async def get_sheet_objects(self, app_id: str, sheet_id: str, api_key: str) -> List[Dict[str, Any]]:
         ws = await self._get_connection(app_id, api_key)
